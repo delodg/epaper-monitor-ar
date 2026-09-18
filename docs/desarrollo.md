@@ -70,8 +70,25 @@ Con el USB nativo del ESP32-S3, en deep-sleep el puerto COM desaparece y sólo r
    y no duerme.
 2. Mantener **BOOT** 2 s: abre el portal y queda despierta hasta 5 min.
 3. Mantener **BOOT** y reiniciar/reconectar: modo descarga del ROM.
-4. Script que espera a que aparezca el puerto y dispara esptool al instante (una vez en el
-   bootloader, ya no se duerme).
+4. `python tools/flash_catch.py COM4` — espera a que aparezca el puerto, lo toma, fuerza el
+   bootloader ROM con la secuencia DTR/RTS y recién entonces corre esptool (una vez en el
+   bootloader, ya no se duerme). Las ventanas de un despertar "de reloj" (~1 s) suelen ser
+   demasiado cortas para Windows; conviene provocar una ventana larga con **PWR** 2 s
+   (sincronización, ~10 s) o esperar la sincronización periódica.
+
+## Cosas que NO hacer (aprendidas a golpes)
+
+- **No usar `setCpuFrequencyMhz()`**: en el ESP32-S3 el cambio de reloj re-enumera el USB
+  nativo, el host deja de mandar SOF unos segundos y la detección de PC lo interpreta como
+  "desconectado" (y la placa se duerme). El ahorro de energía se logra apagando el Wi-Fi
+  entre sincronizaciones.
+- **No leer `USB_SERIAL_JTAG.int_raw.sof_int_raw` a mano**: el tick-hook de HWCDC lo borra
+  cada 1 ms y la lectura se vuelve una lotería. Usar `HWCDC::isPlugged()`.
+- **No decidir el modo de energía en los primeros ms tras un deep-sleep**: la PC tarda
+  ~1-2 s en re-enumerar el USB; por eso el chequeo definitivo se hace al final del ciclo.
+- `sntp_get_sync_status()` devuelve `COMPLETED` **una sola vez** y se resetea: guardar el
+  resultado en una variable.
+- Las fuentes Helvetica de U8g2 no tienen `…` ni `→`.
 
 ## Agregar una fuente de noticias
 

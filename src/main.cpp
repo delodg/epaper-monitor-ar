@@ -92,14 +92,12 @@ static bool doSync() {
     Net::disconnect();
     return false;
   }
-  setCpuFrequencyMhz(240);
   Board::ledOn();
   if (!Net::connect(WIFI_CONNECT_TIMEOUT_MS)) {
     g_state.lastError = ERR_WIFI_FAILED;
     g_state.wifiOk = false;
     Board::ledOff();
     Net::disconnect();
-    if (g_alwaysOn) setCpuFrequencyMhz(80);
     return false;
   }
   g_state.wifiOk = true;
@@ -116,7 +114,6 @@ static bool doSync() {
   g_state.lastSync = time(nullptr);
   Net::updateLinkInfo();
   Net::disconnect();                 // la radio apagada entre syncs: menos consumo y menos calor en el SHTC3
-  if (g_alwaysOn) setCpuFrequencyMhz(80);
   Board::ledOff();
   return true;
 }
@@ -241,8 +238,15 @@ void setup() {
   renderCurrent();
   UI::hibernate();
 
+  // Tras un deep-sleep el USB se re-enumera y la PC tarda ~1-2 s en volver a mandar SOF:
+  // re-chequear al final del ciclo (ya pasaron sensores + refresco) antes de decidir dormir.
+  if (!g_alwaysOn && Board::usbHostConnected()) {
+    g_usbHost = true;
+    g_alwaysOn = true;
+    Serial.println("[main] host USB detectado al final del ciclo -> siempre encendido");
+  }
   if (!g_alwaysOn) Board::deepSleep(sleepMicros());
-  setCpuFrequencyMhz(80);             // reposo: menos consumo/calor (se sube a 240 durante el sync)
+  // Nota: no usar setCpuFrequencyMhz(): en el S3 re-enumera el USB y rompe la detección de host.
   Serial.println("[main] modo siempre encendido");
 }
 
@@ -317,10 +321,12 @@ void loop() {
       changed = true;
     }
     if (syncDue()) { doSync(); changed = true; }
-    // Si estábamos "siempre encendidos" sólo por el USB y lo desconectaron: pasar a bajo consumo
-    if (!g_cfg.alwaysOn && g_usbHost && !Board::usbHostConnected()) {
-      delay(200);
-      if (!Board::usbHostConnected()) {
+    // Si estábamos "siempre encendidos" sólo por el USB y lo desconectaron (10 s seguidos
+    // sin paquetes SOF): pasar a bajo consumo
+    static uint8_t noHostSecs = 0;
+    if (!g_cfg.alwaysOn && g_usbHost) {
+      noHostSecs = Board::usbHostConnected() ? 0 : noHostSecs + 1;
+      if (noHostSecs >= 10) {
         Serial.println("[main] USB desconectado -> deep-sleep");
         g_usbHost = false;
         g_alwaysOn = false;

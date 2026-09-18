@@ -120,7 +120,7 @@ Para volver al portal en cualquier momento: **BOOT** 2 s. El portal se cierra so
 | Situación | Comportamiento |
 |---|---|
 | **Batería** (o cargador sin PC) | Deep-sleep. Despierta cada minuto para actualizar el reloj (refresco parcial, ~1 s) y cada *intervalo* para sincronizar por Wi-Fi (~10–15 s). Botones despiertan al instante. |
-| **PC por USB** | Detecta el host (paquetes SOF) y queda **siempre encendido**: puerto serie disponible, botones por polling, Wi-Fi apagado entre sincronizaciones y CPU a 80 MHz para calentar menos el sensor. Si se desconecta la PC, pasa a deep-sleep solo. |
+| **PC por USB** | Detecta el host (paquetes SOF) y queda **siempre encendido**: puerto serie disponible, botones por polling y Wi-Fi apagado entre sincronizaciones para calentar menos el sensor. Si se desconecta la PC (10 s sin SOF), pasa a deep-sleep solo. |
 | **"Siempre encendido"** (portal) | Igual al modo USB, sin importar la alimentación. |
 
 Nota: en modo siempre encendido el SHTC3 puede leer unos grados de más por el calor de la
@@ -155,6 +155,7 @@ src/ui.*              render de las 7 secciones (GxEPD2 + U8g2), íconos, QR, vo
 src/rtc_pcf85063.*    driver mínimo del RTC
 src/shtc3.*           driver mínimo del sensor
 tools/fbdump.py       captura la pantalla por USB y la guarda como PNG
+tools/flash_catch.py  graba el firmware "cazando" la ventana en que la placa despierta
 firmware/             imagen precompilada lista para grabar
 docs/                 hardware, desarrollo e imágenes
 ```
