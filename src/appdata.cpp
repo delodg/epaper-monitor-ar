@@ -42,3 +42,40 @@ void formatHHMM(time_t epoch, char* out, size_t n) {
   localtime_r(&epoch, &t);
   snprintf(out, n, "%02d:%02d", t.tm_hour, t.tm_min);
 }
+
+// ---- Viento: dirección en texto (de dónde viene) ----
+const char* windDirText(int deg) {
+  static const char* dirs[] = {"N", "NE", "E", "SE", "S", "SO", "O", "NO"};
+  int i = (int)(((deg % 360) + 360) % 360 + 22.5) / 45;
+  return dirs[i % 8];
+}
+
+// ---- Luna: fase a partir de la luna nueva de referencia (2000-01-06 18:14 UTC) ----
+double moonPhase(time_t epoch) {
+  const double SYNODIC = 29.530588853;
+  double days = ((double)epoch - 947182440.0) / 86400.0;
+  double phase = days / SYNODIC;
+  phase -= (long)phase;
+  if (phase < 0) phase += 1.0;
+  return phase;
+}
+
+const char* moonPhaseName(double p) {
+  if (p < 0.03 || p > 0.97) return "Luna nueva";
+  if (p < 0.22) return "Luna creciente";
+  if (p < 0.28) return "Cuarto creciente";
+  if (p < 0.47) return "Gibosa creciente";
+  if (p < 0.53) return "Luna llena";
+  if (p < 0.72) return "Gibosa menguante";
+  if (p < 0.78) return "Cuarto menguante";
+  return "Luna menguante";
+}
+
+// ---- Índice UV (escala OMS) ----
+const char* uvText(float uv) {
+  if (uv < 3) return "bajo";
+  if (uv < 6) return "moderado";
+  if (uv < 8) return "alto";
+  if (uv < 11) return "muy alto";
+  return "extremo";
+}

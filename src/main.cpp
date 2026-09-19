@@ -28,6 +28,10 @@ RTC_DATA_ATTR WeatherData g_weather;
 RTC_DATA_ATTR DolarData  g_dolar;
 RTC_DATA_ATTR NewsData   g_news;
 RTC_DATA_ATTR HolidayData g_holidays;
+RTC_DATA_ATTR MarineData g_marine;
+RTC_DATA_ATTR SunData    g_sun;
+RTC_DATA_ATTR EconData   g_econ;
+RTC_DATA_ATTR IndoorHistory g_hist;
 IndoorData               g_indoor;
 int                      g_batteryMv = 0;
 struct tm                g_now;
@@ -81,6 +85,18 @@ static void readSensorsAtBoot() {
   g_batteryMv = Board::batteryMilliVolts();
 }
 
+// Historial interior: una muestra en cada múltiplo de 15 min (sirve en ambos modos)
+static void sampleIndoorIfDue() {
+  if (!g_indoor.valid || !g_state.timeValid || (g_now.tm_min % 15) != 0) return;
+  int32_t slot = (int32_t)g_now.tm_yday * 96 + g_now.tm_hour * 4 + g_now.tm_min / 15;
+  if (slot == g_hist.lastSlot) return;
+  g_hist.temp[g_hist.head] = (int16_t)lroundf(g_indoor.temp * 10.0f);
+  g_hist.hum[g_hist.head]  = (uint8_t)lroundf(g_indoor.hum);
+  g_hist.head = (g_hist.head + 1) % INDOOR_SAMPLES;
+  if (g_hist.count < INDOOR_SAMPLES) g_hist.count++;
+  g_hist.lastSlot = slot;
+}
+
 // ---------------------------------------------------------------------------
 //  Sincronización de datos por Wi-Fi
 // ---------------------------------------------------------------------------
@@ -106,8 +122,14 @@ static bool doSync() {
   bool timeOk = Net::syncTime();
   if (!timeOk && !g_state.timeValid) g_state.lastError = ERR_NTP_FAILED;
 
-  Net::fetchWeather();
+  // Cada dato tiene su cadencia: lo que cambia lento se baja menos seguido (batería).
+  time_t now = time(nullptr);
+  auto stale = [&](bool valid, time_t updated, long maxAge) { return !valid || updated == 0 || now - updated >= maxAge - 30; };
+  if (stale(g_weather.valid, g_weather.updated, WEATHER_MAX_AGE_S)) Net::fetchWeather();
+  if (stale(g_marine.valid, g_marine.updated, MARINE_MAX_AGE_S)) Net::fetchMarine();
+  if (g_state.timeValid && (!g_sun.valid || g_sun.mday != g_now.tm_mday)) Net::fetchSun();
   Net::fetchDolar();
+  if (stale(g_econ.valid, g_econ.updated, ECON_MAX_AGE_S)) Net::fetchEcon();
   if (g_state.timeValid && (!g_holidays.valid || g_holidays.fetchedYday != g_now.tm_yday)) Net::fetchHolidays();
   Net::fetchNews();
 
@@ -160,6 +182,7 @@ static void renderCurrent() {
 
 static void doPowerOff() {
   Serial.println("[main] apagando (PWR 6 s)");
+  g_state.poweredOff = true;
   UI::renderMessage("Apagado", "Mantené PWR para", "volver a encender", true);
   UI::hibernate();
   Board::powerOff();
@@ -167,9 +190,9 @@ static void doPowerOff() {
 
 static uint64_t sleepMicros() {
   refreshNow();
-  int wait = g_state.timeValid ? (60 - g_now.tm_sec) : 60;
-  if (wait < 3) wait += 60;
-  return (uint64_t)wait * 1000000ULL - 250000ULL;     // despierta un poco antes del :00
+  int wait = g_state.timeValid ? (60 - g_now.tm_sec) : 60;   // segundos hasta el próximo :00
+  if (wait < 1) wait = 1;
+  return (uint64_t)wait * 1000000ULL - 250000ULL;     // despierta un poco antes (el arranque tarda ~0,3 s)
 }
 
 // ---------------------------------------------------------------------------
@@ -188,6 +211,11 @@ void setup() {
     memset(&g_dolar, 0, sizeof(g_dolar));
     memset(&g_news, 0, sizeof(g_news));
     memset(&g_holidays, 0, sizeof(g_holidays));
+    memset(&g_marine, 0, sizeof(g_marine));
+    memset(&g_sun, 0, sizeof(g_sun));
+    memset(&g_econ, 0, sizeof(g_econ));
+    memset(&g_hist, 0, sizeof(g_hist));
+    g_hist.lastSlot = -1;
   }
   g_state.bootCount++;
 
@@ -204,16 +232,25 @@ void setup() {
   bool rtcOk = g_rtc.begin();
   bool shtOk = g_shtc3.begin();
   readSensorsAtBoot();
+  sampleIndoorIfDue();
 
-  Serial.printf("\n[main] ePaper Monitor AR v%s | boot #%lu | wake=%d cold=%d | RTC %s | SHTC3 %s | bat %d mV | USB host %s | modo %s\n",
-                FW_VERSION, (unsigned long)g_state.bootCount, (int)wake, s_coldBoot, rtcOk ? "ok" : "NO",
-                shtOk ? "ok" : "NO", g_batteryMv, g_usbHost ? "sí" : "no", g_alwaysOn ? "siempre-on" : "deep-sleep");
+  static const char* RST[] = {"desconocido", "power-on", "externo", "software", "PANIC", "int-WDT", "task-WDT", "otro-WDT", "deep-sleep", "brownout", "SDIO"};
+  int rr = (int)esp_reset_reason();
+  Serial.printf("\n[main] ePaper Monitor AR v%s | boot #%lu | reset=%s wake=%d cold=%d | RTC %s | SHTC3 %s | bat %d mV | USB host %s | modo %s\n",
+                FW_VERSION, (unsigned long)g_state.bootCount, (rr >= 0 && rr <= 10) ? RST[rr] : "?", (int)wake, s_coldBoot,
+                rtcOk ? "ok" : "NO", shtOk ? "ok" : "NO", g_batteryMv, g_usbHost ? "sí" : "no", g_alwaysOn ? "siempre-on" : "deep-sleep");
   if (g_state.timeValid)
     Serial.printf("[main] hora RTC: %02d/%02d/%04d %02d:%02d:%02d\n", g_now.tm_mday, g_now.tm_mon + 1,
                   g_now.tm_year + 1900, g_now.tm_hour, g_now.tm_min, g_now.tm_sec);
 
   // ---- Botones (la pulsación que nos despertó) ----
   bool forceSync = false, openPortal = false, powerOff = false;
+  if (g_state.poweredOff) {                       // venimos de "apagar": encender sin cambiar de sección
+    g_state.poweredOff = false;
+    s_forceFull = true;
+    wake = Board::WAKE_OTHER;
+    Serial.println("[main] encendido");
+  }
   if (wake == Board::WAKE_BTN_BOOT) {
     uint32_t held = Board::measureHold(PIN_BTN_BOOT, LONG_PRESS_MS + 100);
     if (held >= LONG_PRESS_MS) openPortal = true; else gotoPage(+1);
@@ -288,7 +325,7 @@ void loop() {
   bool changed = false;
 
   // Comandos por USB (útiles para desarrollo): n/p sección, s sync, f refresco completo,
-  // d volcar pantalla actual, a volcar las 7 secciones, w portal Wi-Fi
+  // d volcar pantalla actual, a volcar todas las secciones, w portal Wi-Fi
   while (Serial.available()) {
     char c = (char)Serial.read();
     switch (c) {
@@ -299,6 +336,15 @@ void loop() {
       case 'd': UI::dumpBuffer(g_state.page); break;
       case 'a': UI::dumpAllPages(g_state.page); break;
       case 'w': portalFlow(); changed = true; break;
+      case 'h': {   // demo: llena el historial interior con datos sintéticos (para probar la UI)
+        g_hist.count = INDOOR_SAMPLES; g_hist.head = 0;
+        for (int i = 0; i < INDOOR_SAMPLES; i++) {
+          g_hist.temp[i] = (int16_t)(220 + 40 * sinf(i * 0.13f) + (i % 7));
+          g_hist.hum[i]  = (uint8_t)(45 + 12 * cosf(i * 0.09f));
+        }
+        changed = true;
+        break;
+      }
       default: break;
     }
   }
@@ -318,7 +364,11 @@ void loop() {
     if (g_now.tm_min != s_lastMinute) {
       g_indoor.valid = g_shtc3.read(g_indoor.temp, g_indoor.hum);
       g_batteryMv = Board::batteryMilliVolts();
+      sampleIndoorIfDue();
       changed = true;
+      Serial.printf("[main] %02d:%02d heap %u KB (mín %u KB) pila libre %u B\n", g_now.tm_hour, g_now.tm_min,
+                    (unsigned)(ESP.getFreeHeap() / 1024), (unsigned)(ESP.getMinFreeHeap() / 1024),
+                    (unsigned)uxTaskGetStackHighWaterMark(NULL));
     }
     if (syncDue()) { doSync(); changed = true; }
     // Si estábamos "siempre encendidos" sólo por el USB y lo desconectaron (10 s seguidos

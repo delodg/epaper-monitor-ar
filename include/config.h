@@ -44,6 +44,7 @@
 
 // ---- Portal de configuración Wi-Fi ----
 #define AP_NAME            "ePaperAR-Setup"
+#define AP_PASSWORD        "epaper-ar"       // >= 8 caracteres; se muestra en pantalla y va en el QR
 #define PORTAL_TIMEOUT_S   300
 
 // ---- Valores por defecto (configurables desde el portal) ----
@@ -60,6 +61,12 @@
 #define DEFAULT_INTERVAL_MIN 15
 #define DEFAULT_NEWS         "clarin"
 
+// ---- Cadencia de descarga por dato (además del intervalo general del portal) ----
+#define WEATHER_MAX_AGE_S   (30 * 60)     // clima: cada 30 min
+#define MARINE_MAX_AGE_S    (3 * 3600)    // mar (mareas/olas): cada 3 h
+#define ECON_MAX_AGE_S      (60 * 60)     // economía: cada hora
+#define GEO_TRIES_EAST      5             // celdas marinas a probar hacia el este (0, +0.25°, ... +1.0°)
+
 // ---- Tiempos ----
 #define LONG_PRESS_MS            2000   // BOOT largo = portal Wi-Fi, PWR largo = sincronizar
 #define POWEROFF_PRESS_MS        6000   // PWR muy largo = apagar
@@ -73,9 +80,13 @@
 enum Page : uint8_t {
   PAGE_CLOCK = 0,
   PAGE_WEATHER,
+  PAGE_MARINE,
+  PAGE_SUN,
   PAGE_DOLAR,
+  PAGE_ECON,
   PAGE_NEWS,
   PAGE_HOLIDAYS,
+  PAGE_INDOOR,
   PAGE_WIFI,
   PAGE_SYSTEM,
   PAGE_COUNT

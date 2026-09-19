@@ -358,7 +358,7 @@ static void pageClock() {
     font(F_R08);
     snprintf(buf, sizeof(buf), "ST %.0f°", g_weather.feels); text(xr, 92, buf);
     snprintf(buf, sizeof(buf), "Hum %.0f%%", g_weather.hum); text(xr, 104, buf);
-    snprintf(buf, sizeof(buf), "%.0f km/h", g_weather.wind); text(xr, 116, buf);
+    snprintf(buf, sizeof(buf), "%s %.0f km/h", windDirText(g_weather.windDir), g_weather.wind); text(xr, 116, buf);
     font(F_R08);
     text(54, 127, fit(weatherText(g_weather.code), 144).c_str());
   } else {
@@ -592,7 +592,7 @@ static void pageWifi() {
   text(4, y, "Configurar red / ciudad / noticias:"); y += LINE_H8;
   font(F_R08);
   text(4, y, "Mantené BOOT 2 s: abre el portal"); y += LINE_H8;
-  snprintf(buf, sizeof(buf), "Red \"%s\" -> 192.168.4.1", AP_NAME); text(4, y, fit(buf, W - 8).c_str()); y += LINE_H8;
+  snprintf(buf, sizeof(buf), "Red %s (clave %s)", AP_NAME, AP_PASSWORD); text(4, y, fit(buf, W - 8).c_str()); y += LINE_H8;
   text(4, y, "Mantené PWR 2 s: actualizar ahora");
 }
 
@@ -630,6 +630,312 @@ static void pageSystem() {
 }
 
 // ============================================================================
+//  Sección Mar: curva de marea + próximas pleamares/bajamares + olas/agua/viento
+// ============================================================================
+static void drawTideCurve(int x0, int y0, int w, int h, time_t from, int hours) {
+  // rango de niveles en la ventana
+  int16_t lo = INT16_MAX, hi = INT16_MIN;
+  float hStart = (float)(from - g_marine.t0) / 3600.0f;
+  for (int i = 0; i < MARINE_HOURS; i++) {
+    if (g_marine.level[i] == LEVEL_NONE) continue;
+    if (i < (int)hStart - 1 || i > (int)hStart + hours + 1) continue;
+    lo = min(lo, g_marine.level[i]);
+    hi = max(hi, g_marine.level[i]);
+  }
+  if (hi <= lo) return;
+  int span = hi - lo;
+  auto yOf = [&](float cm) { return (int)lroundf(y0 + h - 2 - (cm - lo) * (h - 4) / (float)span); };
+  auto xOf = [&](float hrs) { return (int)lroundf(x0 + (hrs - hStart) * w / (float)hours); };
+
+  // ejes: línea base punteada al nivel medio (0) si está en el rango
+  if (lo < 0 && hi > 0) {
+    int y = yOf(0);
+    for (int x = x0; x < x0 + w; x += 4) display.drawPixel(x, y, GxEPD_BLACK);
+  }
+  // curva: interpolación lineal por décimos de hora
+  int prevX = -1, prevY = -1;
+  for (float hr = hStart; hr <= hStart + hours; hr += 0.1f) {
+    int i = (int)floorf(hr);
+    if (i < 0 || i + 1 >= MARINE_HOURS) break;
+    if (g_marine.level[i] == LEVEL_NONE || g_marine.level[i + 1] == LEVEL_NONE) { prevX = -1; continue; }
+    float f = hr - i;
+    float cm = g_marine.level[i] + (g_marine.level[i + 1] - g_marine.level[i]) * f;
+    int x = xOf(hr), y = yOf(cm);
+    if (prevX >= 0) { display.drawLine(prevX, prevY, x, y, GxEPD_BLACK); display.drawLine(prevX, prevY + 1, x, y + 1, GxEPD_BLACK); }
+    prevX = x; prevY = y;
+  }
+  // marca de "ahora"
+  int xNow = xOf(hStart);
+  for (int y = y0; y < y0 + h; y += 3) display.drawPixel(xNow, y, GxEPD_BLACK);
+  // marcas horarias cada 6 h
+  for (int k = 6; k < hours; k += 6) {
+    int x = xOf(hStart + k);
+    display.drawFastVLine(x, y0 + h - 3, 3, GxEPD_BLACK);
+  }
+  display.drawFastHLine(x0, y0 + h, w, GxEPD_BLACK);
+}
+
+static void pageMarine() {
+  drawHeader("Mar");
+  char buf[64], hm[8];
+  if (!g_marine.valid) {
+    font(F_R10);
+    textCenter(W / 2, 96, "Sin datos del mar");
+    font(F_R08);
+    textCenter(W / 2, 112, "Se cargan en la próxima sync o la");
+    textCenter(W / 2, 123, "ubicación está lejos de la costa.");
+    return;
+  }
+  time_t now = time(nullptr);
+  formatHHMM(g_marine.updated, hm, sizeof(hm));
+  font(F_R08);
+  snprintf(buf, sizeof(buf), "Marea próximas 24 h · act. %s", hm);
+  text(3, 29, buf);
+  drawTideCurve(6, 33, W - 12, 50, now, 24);
+  font(F_TINY);
+  text(4, 92, "ahora");
+  textCenter(W / 2, 92, "alturas s/ bajamar min.");
+  textRight(W - 4, 92, "+24 h");
+
+  // próximas pleamares / bajamares en dos columnas; alturas sobre el nivel mínimo de la
+  // serie (aprox. la bajamar más baja, como en las tablas de marea)
+  int16_t datum = INT16_MAX;
+  for (int i = 0; i < MARINE_HOURS; i++) if (g_marine.level[i] != LEVEL_NONE) datum = min(datum, g_marine.level[i]);
+  int y = 107;
+  int shown = 0;
+  for (int i = 0; i < g_marine.nExt && shown < 6; i++) {
+    const TideExtreme& e = g_marine.ext[i];
+    if (e.t < now - 1800) continue;                  // ya pasó (la caché se renueva cada 3 h)
+    int col = shown % 2, row = shown / 2;
+    int x = 6 + col * 98, yy = y + row * 14;
+    if (e.high) display.fillTriangle(x, yy, x + 7, yy, x + 3, yy - 7, GxEPD_BLACK);
+    else display.fillTriangle(x, yy - 7, x + 7, yy - 7, x + 3, yy, GxEPD_BLACK);
+    formatHHMM(e.t, hm, sizeof(hm));
+    font(F_B08);
+    snprintf(buf, sizeof(buf), "%s %s", e.high ? "Alta" : "Baja", hm);
+    text(x + 11, yy, buf);
+    font(F_R08);
+    snprintf(buf, sizeof(buf), "%.1f m", (e.cm - datum) / 100.0f);
+    textRight(x + 93, yy, buf);
+    shown++;
+  }
+  if (shown == 0) { font(F_R08); text(6, y, "Sin extremos en las próximas horas"); }
+
+  hline(150, 3, W - 3);
+  font(F_R08);
+  y = 162;
+  if (!isnan(g_marine.waveNow)) snprintf(buf, sizeof(buf), "Olas %.1f m (máx 24 h %.1f m)", g_marine.waveNow, isnan(g_marine.waveMax24) ? g_marine.waveNow : g_marine.waveMax24);
+  else snprintf(buf, sizeof(buf), "Olas: sin dato en esta celda");
+  text(4, y, fit(buf, W - 8).c_str());
+  y += LINE_H8;
+  if (!isnan(g_marine.sst)) snprintf(buf, sizeof(buf), "Agua %.1f °C", g_marine.sst);
+  else snprintf(buf, sizeof(buf), "Agua: sin dato");
+  if (g_weather.valid) {
+    char w2[40];
+    snprintf(w2, sizeof(w2), " · Viento %s %.0f km/h", windDirText(g_weather.windDir), g_weather.wind);
+    strlcat(buf, w2, sizeof(buf));
+  }
+  text(4, y, fit(buf, W - 8).c_str());
+  y += LINE_H8;
+  if (g_weather.valid && g_weather.gust > 0) {
+    snprintf(buf, sizeof(buf), "Ráfagas %.0f km/h · Open-Meteo Marine", g_weather.gust);
+    text(4, y, fit(buf, W - 8).c_str());
+  }
+}
+
+// ============================================================================
+//  Sección Sol y Luna
+// ============================================================================
+static void drawMoon(int cx, int cy, int r, double phase) {
+  // Hemisferio sur: la luna creciente se ilumina por la IZQUIERDA.
+  display.drawCircle(cx, cy, r, GxEPD_BLACK);
+  display.drawCircle(cx, cy, r - 1, GxEPD_BLACK);
+  float t = cosf(2.0f * (float)M_PI * (float)phase);   // 1 nueva ... -1 llena ... 1
+  bool waxing = phase < 0.5;
+  for (int dy = -r + 2; dy <= r - 2; dy++) {
+    float wf = sqrtf((float)(r - 2) * (r - 2) - (float)dy * dy);
+    int w = (int)wf;
+    int xT = (int)lroundf(t * wf);        // terminador (hemisferio norte, iluminado a la derecha)
+    int a, b;                              // tramo iluminado en x relativo al centro (hemisferio norte)
+    if (waxing) { a = xT; b = w; } else { a = -w; b = -xT; }
+    int sa = -b, sb = -a;                  // espejado para el hemisferio sur
+    // en tinta electrónica lo "iluminado" queda blanco: pintar de negro lo que NO está iluminado
+    if (sa > -w) display.drawFastHLine(cx - w, cy + dy, sa + w, GxEPD_BLACK);
+    if (sb < w)  display.drawFastHLine(cx + sb + 1, cy + dy, w - sb, GxEPD_BLACK);
+  }
+}
+
+static void drawSunIcon(int cx, int cy, int r) { sun(cx, cy, r, r + 3, r + 7); }
+
+static void pageSun() {
+  drawHeader("Sol y Luna");
+  char buf[64];
+  if (!g_sun.valid) {
+    font(F_R10);
+    textCenter(W / 2, 100, "Sin datos del sol");
+    font(F_R08);
+    textCenter(W / 2, 116, "Se cargan en la próxima sync");
+  } else {
+    drawSunIcon(22, 46, 9);
+    font(F_B10);
+    snprintf(buf, sizeof(buf), "Amanece %02d:%02d", g_sun.sunrise / 60, g_sun.sunrise % 60);
+    text(44, 40, buf);
+    snprintf(buf, sizeof(buf), "Atardece %02d:%02d", g_sun.sunset / 60, g_sun.sunset % 60);
+    text(44, 56, buf);
+    font(F_R08);
+    int dl = g_sun.daylight, delta = (g_sun.daylightT - g_sun.daylight) / 60;
+    snprintf(buf, sizeof(buf), "Día de %dh %02dm (mañana %+d min)", dl / 3600, (dl % 3600) / 60, delta);
+    text(4, 72, fit(buf, W - 8).c_str());
+    snprintf(buf, sizeof(buf), "UV máx %.1f (%s)", g_sun.uvMax, uvText(g_sun.uvMax));
+    text(4, 84, buf);
+    if (g_sun.uvMax >= 6) { font(F_B08); textRight(W - 4, 84, "¡protector!"); }
+  }
+  hline(90, 3, W - 3);
+
+  // Luna (fase calculada localmente)
+  time_t now = time(nullptr);
+  double ph = g_state.timeValid ? moonPhase(now) : 0.0;
+  float illum = (1.0f - cosf(2.0f * (float)M_PI * (float)ph)) / 2.0f * 100.0f;
+  drawMoon(36, 130, 26, ph);
+  font(F_B10);
+  text(72, 118, moonPhaseName(ph));
+  font(F_R08);
+  snprintf(buf, sizeof(buf), "Iluminación %.0f%%", illum);
+  text(72, 131, buf);
+  double toFull = (ph < 0.5) ? (0.5 - ph) : (1.5 - ph);
+  double toNew  = 1.0 - ph;
+  snprintf(buf, sizeof(buf), "Llena en %.0f días", toFull * 29.53);
+  text(72, 143, buf);
+  snprintf(buf, sizeof(buf), "Nueva en %.0f días", toNew * 29.53);
+  text(72, 155, buf);
+  font(F_TINY);
+  text(72, 166, "(hemisferio sur)");
+  hline(172, 3, W - 3);
+  font(F_R08);
+  if (g_state.timeValid) {
+    int nowMin = g_now.tm_hour * 60 + g_now.tm_min;
+    if (g_sun.valid && nowMin < g_sun.sunrise) snprintf(buf, sizeof(buf), "Amanece en %dh %02dm", (g_sun.sunrise - nowMin) / 60, (g_sun.sunrise - nowMin) % 60);
+    else if (g_sun.valid && nowMin < g_sun.sunset) snprintf(buf, sizeof(buf), "Atardece en %dh %02dm", (g_sun.sunset - nowMin) / 60, (g_sun.sunset - nowMin) % 60);
+    else if (g_sun.valid) snprintf(buf, sizeof(buf), "Mañana amanece %02d:%02d", g_sun.sunriseT / 60, g_sun.sunriseT % 60);
+    else snprintf(buf, sizeof(buf), "—");
+    textCenter(W / 2, 185, buf);
+  }
+}
+
+// ============================================================================
+//  Sección Economía
+// ============================================================================
+static void pageEcon() {
+  drawHeader("Economía");
+  char buf[64], hm[8];
+  if (!g_econ.valid) {
+    font(F_R10);
+    textCenter(W / 2, 100, "Sin datos económicos");
+    font(F_R08);
+    textCenter(W / 2, 116, "Se cargan en la próxima sync");
+    return;
+  }
+  int y = 36;
+  font(F_B10); text(4, y, "Riesgo país");
+  font(F_B14);
+  snprintf(buf, sizeof(buf), "%d", g_econ.riesgoPais);
+  textRight(W - 4, y + 2, buf);
+  font(F_TINY);
+  snprintf(buf, sizeof(buf), "pb · %s", g_econ.riesgoFecha);
+  textRight(W - 4, y + 12, buf);
+  y += 22;
+  display.drawFastHLine(4, y - 5, W - 8, GxEPD_BLACK);
+  y += 8;
+  font(F_B10); text(4, y, "Inflación");
+  font(F_R10);
+  snprintf(buf, sizeof(buf), "%s %.1f%%", g_econ.inflMes[0] ? g_econ.inflMes : "mes", g_econ.inflMensual);
+  textRight(W - 4, y, buf);
+  y += 13;
+  font(F_R08);
+  snprintf(buf, sizeof(buf), "interanual %.1f%%", g_econ.inflInteranual);
+  textRight(W - 4, y, buf);
+  y += 10;
+  display.drawFastHLine(4, y - 3, W - 8, GxEPD_BLACK);
+  y += 12;
+  font(F_B08); text(4, y, "Moneda"); textRight(132, y, "Compra"); textRight(W - 4, y, "Venta");
+  y += 13;
+  font(F_R10);
+  text(4, y, "Euro");   textRight(132, y, money(g_econ.euroCompra).c_str()); textRight(W - 4, y, money(g_econ.euroVenta).c_str());
+  y += 14;
+  text(4, y, "Real");   textRight(132, y, money(g_econ.realCompra).c_str()); textRight(W - 4, y, money(g_econ.realVenta).c_str());
+  y += 10;
+  display.drawFastHLine(4, y - 3, W - 8, GxEPD_BLACK);
+  y += 12;
+  font(F_B08); text(4, y, "Cripto (US$)");
+  font(F_R10);
+  snprintf(buf, sizeof(buf), "BTC %s", money(g_econ.btcUsd).c_str());
+  text(70, y, buf);
+  y += 14;
+  snprintf(buf, sizeof(buf), "ETH %s", money(g_econ.ethUsd).c_str());
+  text(70, y, buf);
+  formatHHMM(g_econ.updated, hm, sizeof(hm));
+  font(F_TINY);
+  snprintf(buf, sizeof(buf), "ArgentinaDatos - DolarApi - CoinGecko - %s", hm);
+  textCenter(W / 2, 185, fit(buf, W - 6).c_str());
+}
+
+// ============================================================================
+//  Sección Interior: temperatura y humedad con historial de 24 h
+// ============================================================================
+static void drawSparkline(int x0, int y0, int w, int h, bool humidity) {
+  if (g_hist.count < 2) { font(F_TINY); text(x0, y0 + h / 2, "juntando muestras..."); return; }
+  int n = g_hist.count;
+  float lo = 1e9, hi = -1e9;
+  for (int k = 0; k < n; k++) {
+    int idx = (g_hist.head + INDOOR_SAMPLES - n + k) % INDOOR_SAMPLES;
+    float v = humidity ? g_hist.hum[idx] : g_hist.temp[idx] / 10.0f;
+    lo = min(lo, v); hi = max(hi, v);
+  }
+  if (hi - lo < (humidity ? 4.0f : 1.0f)) { float mid = (hi + lo) / 2; lo = mid - (humidity ? 2.0f : 0.5f); hi = mid + (humidity ? 2.0f : 0.5f); }
+  int prevX = -1, prevY = -1;
+  for (int k = 0; k < n; k++) {
+    int idx = (g_hist.head + INDOOR_SAMPLES - n + k) % INDOOR_SAMPLES;
+    float v = humidity ? g_hist.hum[idx] : g_hist.temp[idx] / 10.0f;
+    int x = x0 + (int)lroundf((float)k * (w - 1) / (float)(INDOOR_SAMPLES - 1));
+    int y = y0 + h - 1 - (int)lroundf((v - lo) * (h - 2) / (hi - lo));
+    if (prevX >= 0) display.drawLine(prevX, prevY, x, y, GxEPD_BLACK);
+    prevX = x; prevY = y;
+  }
+  display.drawFastHLine(x0, y0 + h, w, GxEPD_BLACK);
+  char buf[16];
+  font(F_TINY);
+  snprintf(buf, sizeof(buf), humidity ? "%.0f%%" : "%.1f", hi); text(x0 + w + 3, y0 + 6, buf);
+  snprintf(buf, sizeof(buf), humidity ? "%.0f%%" : "%.1f", lo); text(x0 + w + 3, y0 + h, buf);
+}
+
+static void pageIndoor() {
+  drawHeader("Interior");
+  char buf[64];
+  if (g_indoor.valid) {
+    drawThermo(6, 28);
+    font(F_BIG);
+    snprintf(buf, sizeof(buf), "%.1f°", g_indoor.temp);
+    text(20, 50, buf);
+    drawDrop(108, 30);
+    snprintf(buf, sizeof(buf), "%.0f%%", g_indoor.hum);
+    text(122, 50, buf);
+  } else {
+    font(F_R10);
+    text(6, 46, "Sensor SHTC3 sin lectura");
+  }
+  font(F_R08);
+  text(4, 68, "Temperatura · últimas 24 h");
+  drawSparkline(4, 72, 160, 36, false);
+  font(F_R08);
+  text(4, 128, "Humedad · últimas 24 h");
+  drawSparkline(4, 132, 160, 36, true);
+  font(F_TINY);
+  if (g_alwaysOn) snprintf(buf, sizeof(buf), "%u muestras/15 min (USB: lee de mas)", g_hist.count);
+  else snprintf(buf, sizeof(buf), "%u muestras (1 cada 15 min)", g_hist.count);
+  text(4, 184, fit(buf, W - 8).c_str());
+}
+
+// ============================================================================
 //  API
 // ============================================================================
 void begin(bool coldBoot) {
@@ -651,9 +957,13 @@ static void drawPage(uint8_t page) {
   switch (page) {
     case PAGE_CLOCK:    pageClock(); break;
     case PAGE_WEATHER:  pageWeather(); break;
+    case PAGE_MARINE:   pageMarine(); break;
+    case PAGE_SUN:      pageSun(); break;
     case PAGE_DOLAR:    pageDolar(); break;
+    case PAGE_ECON:     pageEcon(); break;
     case PAGE_NEWS:     pageNews(); break;
     case PAGE_HOLIDAYS: pageHolidays(); break;
+    case PAGE_INDOOR:   pageIndoor(); break;
     case PAGE_WIFI:     pageWifi(); break;
     case PAGE_SYSTEM:   pageSystem(); break;
     default:            pageClock(); break;
@@ -707,7 +1017,7 @@ void renderPortal() {
   QRCode qr;
   uint8_t qrData[160];
   char payload[64];
-  snprintf(payload, sizeof(payload), "WIFI:T:nopass;S:%s;;", AP_NAME);
+  snprintf(payload, sizeof(payload), "WIFI:T:WPA;S:%s;P:%s;;", AP_NAME, AP_PASSWORD);
   qrcode_initText(&qr, qrData, 3, ECC_LOW, payload);
   const int scale = 3, x0 = 4, y0 = 24;
   for (uint8_t y = 0; y < qr.size; y++)
@@ -716,19 +1026,23 @@ void renderPortal() {
 
   int x = x0 + qr.size * scale + 6;
   font(F_R08);
-  text(x, 36, "1) Escaneá el QR");
-  text(x, 47, "o conectate a:");
+  text(x, 34, "1) Escaneá el QR");
+  text(x, 45, "o conectate a:");
   font(F_B08);
-  text(x, 60, AP_NAME);
+  text(x, 57, AP_NAME);
   font(F_R08);
-  text(x, 76, "2) Abrí en el");
-  text(x, 87, "navegador:");
+  text(x, 68, "clave:");
   font(F_B08);
-  text(x, 100, "192.168.4.1");
+  text(x + 32, 68, AP_PASSWORD);
   font(F_R08);
-  text(x, 116, "3) Elegí tu red,");
-  text(x, 127, "poné la clave y");
-  text(x, 138, "guardá.");
+  text(x, 84, "2) Abrí en el");
+  text(x, 95, "navegador:");
+  font(F_B08);
+  text(x, 107, "192.168.4.1");
+  font(F_R08);
+  text(x, 122, "3) Elegí tu red,");
+  text(x, 133, "poné la clave y");
+  text(x, 144, "guardá.");
 
   hline(146);
   text(4, 158, "También podés cambiar ciudad, intervalo");

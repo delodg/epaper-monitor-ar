@@ -22,5 +22,12 @@ bool fetchWeather();
 bool fetchDolar();
 bool fetchHolidays();
 bool fetchNews();
+bool fetchMarine();                       // mareas/olas/agua (Open-Meteo Marine)
+bool fetchSun();                          // amanecer/atardecer/UV (Open-Meteo)
+bool fetchEcon();                         // riesgo país, inflación, euro/real, BTC/ETH
+
+// compartidos con net_extra.cpp
+bool httpGetString(const char* url, String& out);
+extern const char* USER_AGENT;
 
 }  // namespace Net

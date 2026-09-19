@@ -146,7 +146,7 @@ bool runPortal() {
   wm.setMenu(menu);
 
   Serial.printf("[net] Portal de configuración: red '%s' -> http://192.168.4.1\n", AP_NAME);
-  bool connected = wm.startConfigPortal(AP_NAME);
+  bool connected = wm.startConfigPortal(AP_NAME, AP_PASSWORD);
 
   // Tomar los parámetros (si el usuario no guardó, quedan los valores previos)
   String city = pCity.getValue(); city.trim();
@@ -175,9 +175,9 @@ bool runPortal() {
 // ============================================================================
 //  HTTP helper
 // ============================================================================
-static const char* USER_AGENT = "ePaperMonitorAR/" FW_VERSION " (ESP32-S3; +https://github.com)";
+const char* USER_AGENT = "ePaperMonitorAR/" FW_VERSION " (ESP32-S3; +https://github.com)";
 
-static bool httpGetString(const char* url, String& out) {
+bool httpGetString(const char* url, String& out) {
   WiFiClientSecure secure;
   WiFiClient plain;
   bool https = (strncmp(url, "https://", 8) == 0);
@@ -314,7 +314,7 @@ bool fetchWeather() {
   ensureLocation();
   String url = "https://api.open-meteo.com/v1/forecast?latitude=" + String(g_cfg.lat, 4) +
                "&longitude=" + String(g_cfg.lon, 4) +
-               "&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,is_day"
+               "&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day"
                "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"
                "&timezone=America%2FArgentina%2FBuenos_Aires&forecast_days=4";
   String body;
@@ -329,6 +329,8 @@ bool fetchWeather() {
   w.hum   = cur["relative_humidity_2m"] | 0.0f;
   w.feels = cur["apparent_temperature"] | 0.0f;
   w.wind  = cur["wind_speed_10m"] | 0.0f;
+  w.gust  = cur["wind_gusts_10m"] | 0.0f;
+  w.windDir = cur["wind_direction_10m"] | 0;
   w.code  = cur["weather_code"] | 0;
   w.isDay = (cur["is_day"] | 1) != 0;
   JsonObject d = doc["daily"];

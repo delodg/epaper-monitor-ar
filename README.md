@@ -2,23 +2,28 @@
 
 Firmware para la placa **Waveshare ESP32-S3-ePaper-1.54 (V2)**: un monitor de escritorio
 argentino en tinta electrónica con **hora sincronizada por NTP (Argentina)**, **clima de tu
-ciudad (ubicación automática)**, **dólar** (oficial, blue, MEP, CCL, tarjeta, cripto),
-**noticias**, **feriados**, y **temperatura/humedad interior**. Navegación con los dos botones
-de la placa al estilo M5StickC, portal Wi-Fi con QR y modo de bajo consumo para batería.
+ciudad (ubicación automática)**, **mareas, olas y viento**, **sol y luna**, **dólar**,
+**economía** (riesgo país, inflación, euro/real, BTC), **noticias**, **feriados** y
+**temperatura/humedad interior con historial**. Navegación con los dos botones de la placa
+al estilo M5StickC, portal Wi-Fi con QR y modo de bajo consumo para batería.
 
-| Reloj | Clima | Dólar | Noticias |
+| Reloj | Clima | Mar | Sol y Luna |
 |---|---|---|---|
-| ![](docs/img/01-reloj.png) | ![](docs/img/02-clima.png) | ![](docs/img/03-dolar.png) | ![](docs/img/04-noticias.png) |
+| ![](docs/img/01-reloj.png) | ![](docs/img/02-clima.png) | ![](docs/img/03-mar.png) | ![](docs/img/04-sol.png) |
 
-| Feriados | Wi-Fi | Sistema |
+| Dólar | Economía | Noticias | Feriados |
+|---|---|---|---|
+| ![](docs/img/05-dolar.png) | ![](docs/img/06-economia.png) | ![](docs/img/07-noticias.png) | ![](docs/img/08-feriados.png) |
+
+| Interior | Wi-Fi | Sistema |
 |---|---|---|
-| ![](docs/img/05-feriados.png) | ![](docs/img/06-wifi.png) | ![](docs/img/07-sistema.png) |
+| ![](docs/img/09-interior.png) | ![](docs/img/10-wifi.png) | ![](docs/img/11-sistema.png) |
 
 *(capturas reales tomadas del framebuffer de la placa con `tools/fbdump.py`)*
 
 Inspirado en [VolosR/waveshareEinkMonitor](https://github.com/VolosR/waveshareEinkMonitor)
 (reloj + sensor SHTC3 con deep-sleep), reescrito desde cero con Wi-Fi, datos en línea,
-7 secciones y navegación por botones.
+11 secciones y navegación por botones.
 
 ---
 
@@ -29,18 +34,29 @@ Inspirado en [VolosR/waveshareEinkMonitor](https://github.com/VolosR/waveshareEi
 - **Ubicación automática**: al conectarse se geolocaliza por la IP pública de la red Wi-Fi
   (precisión a nivel ciudad). También se puede fijar una ciudad a mano.
 - **Clima** actual + pronóstico de 3 días (Open-Meteo): temperatura, sensación térmica,
-  humedad, viento, máx/mín, probabilidad de lluvia e íconos.
+  humedad, viento con dirección y ráfagas, máx/mín, probabilidad de lluvia e íconos.
+- **Mar** (Open-Meteo Marine): curva de marea de las próximas 24 h con pleamares y bajamares
+  (hora y altura sobre la bajamar mínima), olas, temperatura del agua y viento. Busca sola la
+  celda marina más cercana hacia el este (ideal para Comodoro y toda la costa atlántica).
+- **Sol y Luna**: amanecer, atardecer, duración del día y cuánto cambia mañana, índice UV
+  máximo, fase lunar dibujada (como se ve desde el hemisferio sur), iluminación y días hasta
+  la luna llena/nueva.
 - **Dólar** (dolarapi.com): oficial, blue, MEP, CCL, tarjeta y cripto, compra/venta.
+- **Economía**: riesgo país e inflación mensual/interanual (argentinadatos.com), euro y real
+  (dolarapi.com), BTC y ETH (CoinGecko).
 - **Noticias**: titulares por RSS de Clarín, Ámbito, Perfil, BBC Mundo o La Nación
   (parser incremental: no carga el XML completo en RAM).
 - **Feriados** argentinos (argentinadatos.com): los próximos 4 con cuenta regresiva y tipo
   (inamovible / trasladable / puente).
-- **Interior**: temperatura y humedad del sensor SHTC3 integrado; **batería** con porcentaje.
-- **Portal de configuración Wi-Fi** (WiFiManager) con **QR** en pantalla: red, ciudad,
-  intervalo de actualización, fuente de noticias y modo de energía. Sin credenciales en el código.
+- **Interior**: temperatura y humedad del sensor SHTC3 integrado con gráfico de las últimas
+  24 h (una muestra cada 15 min); **batería** con porcentaje.
+- **Portal de configuración Wi-Fi** (WiFiManager) con **QR** en pantalla (red protegida con
+  clave): red, ciudad, intervalo de actualización, fuente de noticias y modo de energía. Sin
+  credenciales en el código.
 - **Bajo consumo**: deep-sleep entre actualizaciones (despierta cada minuto para el reloj,
-  cada 15 min para los datos). Con una PC conectada por USB queda "siempre encendido"
-  automáticamente (así el puerto COM no desaparece).
+  cada 15 min para los datos; cada dato tiene su propia cadencia: clima 30 min, mar 3 h,
+  economía 1 h, sol y feriados una vez por día). Con una PC conectada por USB queda
+  "siempre encendido" automáticamente (así el puerto COM no desaparece).
 - Tipografías con acentos (U8g2), íconos de clima dibujados por código, refresco parcial
   rápido y refresco completo periódico contra el ghosting.
 
@@ -70,8 +86,8 @@ Mapa de pines completo en [`include/config.h`](include/config.h) y en
 | **PWR** 2 s | **sincronizar ahora** (hora, clima, dólar, noticias, feriados) |
 | **PWR** 6 s | **apagar** (a batería corta la alimentación; con USB queda dormida hasta apretar PWR) |
 
-Secciones, en orden: Reloj · Clima · Dólar · Noticias · Feriados · Wi-Fi · Sistema.
-Los puntos del pie de página indican la sección actual.
+Secciones, en orden: Reloj · Clima · Mar · Sol y Luna · Dólar · Economía · Noticias ·
+Feriados · Interior · Wi-Fi · Sistema. Los puntos del pie de página indican la sección actual.
 
 ## Instalación
 
@@ -82,7 +98,7 @@ para grabar en la dirección `0x0`. Con [esptool](https://docs.espressif.com/pro
 instalado (`pip install esptool`):
 
 ```bash
-esptool --chip esp32s3 --port COM4 --baud 460800 write-flash 0x0 firmware/epaper-monitor-ar-v1.0.0-merged.bin
+esptool --chip esp32s3 --port COM4 --baud 460800 write-flash 0x0 firmware/epaper-monitor-ar-v1.1.0-merged.bin
 ```
 
 (Reemplazá `COM4` por el puerto de tu placa. En Linux/macOS suele ser `/dev/ttyACM0`.)
@@ -104,8 +120,8 @@ librerías (GxEPD2, U8g2_for_Adafruit_GFX, WiFiManager, ArduinoJson, QRCode) se 
 ## Primer uso: configurar el Wi-Fi
 
 1. Al encender sin red configurada, la pantalla muestra un **QR** y las instrucciones.
-2. Escaneá el QR con el celular (o conectate a la red **`ePaperAR-Setup`**) y abrí
-   `http://192.168.4.1`.
+2. Escaneá el QR con el celular (o conectate a la red **`ePaperAR-Setup`**, clave
+   **`epaper-ar`**) y abrí `http://192.168.4.1`.
 3. Elegí tu red Wi-Fi, ingresá la clave y guardá. Opcionalmente ajustá:
    - **Ciudad**: `auto` (geolocalización por la conexión) o el nombre de una ciudad argentina.
    - **Intervalo** de actualización de datos: 5–120 min (por defecto 15).
@@ -133,9 +149,12 @@ propia placa; en deep-sleep la lectura es más fiel.
 | Hora | `ar.pool.ntp.org`, `south-america.pool.ntp.org`, `pool.ntp.org` |
 | Ubicación (ciudad `auto`) | [ip-api.com](http://ip-api.com) (HTTP) con respaldo en [ipwho.is](https://ipwho.is) |
 | Ciudad por nombre | [Open-Meteo Geocoding](https://open-meteo.com/en/docs/geocoding-api) |
-| Clima | [Open-Meteo Forecast](https://open-meteo.com/) |
-| Dólar | [DolarApi](https://dolarapi.com/) |
-| Feriados | [ArgentinaDatos](https://argentinadatos.com/) |
+| Clima, sol y UV | [Open-Meteo Forecast](https://open-meteo.com/) |
+| Mareas, olas, agua | [Open-Meteo Marine](https://open-meteo.com/en/docs/marine-weather-api) |
+| Dólar, euro, real | [DolarApi](https://dolarapi.com/) |
+| Feriados, riesgo país, inflación | [ArgentinaDatos](https://argentinadatos.com/) |
+| BTC / ETH | [CoinGecko](https://www.coingecko.com/api) (API pública) |
+| Fase lunar | cálculo local (ciclo sinódico desde la luna nueva del 6/1/2000) |
 | Noticias | RSS públicos de cada medio |
 
 Privacidad y seguridad: las conexiones HTTPS se hacen **sin validar certificados**
@@ -150,8 +169,9 @@ include/config.h      pines, constantes, zona horaria, valores por defecto
 include/appdata.h     modelo de datos (config, clima, dólar, noticias, feriados, estado)
 src/main.cpp          arranque, deep-sleep, botones, comandos por serie, ciclo principal
 src/board.*           rails de energía, LED, batería, botones, deep-sleep, detección de USB
-src/net.*             WiFiManager (portal), NTP, HTTP, geolocalización y descarga de datos
-src/ui.*              render de las 7 secciones (GxEPD2 + U8g2), íconos, QR, volcado de pantalla
+src/net.*             WiFiManager (portal), NTP, HTTP, geolocalización, clima, dólar, feriados, noticias
+src/net_extra.cpp     mar (mareas), sol y economía
+src/ui.*              render de las 11 secciones (GxEPD2 + U8g2), íconos, QR, volcado de pantalla
 src/rtc_pcf85063.*    driver mínimo del RTC
 src/shtc3.*           driver mínimo del sensor
 tools/fbdump.py       captura la pantalla por USB y la guarda como PNG
@@ -164,7 +184,8 @@ docs/                 hardware, desarrollo e imágenes
 
 Con la placa conectada por USB (modo siempre encendido) se aceptan comandos por el puerto
 serie (115200): `n`/`p` cambiar de sección, `s` sincronizar, `f` refresco completo, `w` portal
-Wi-Fi, `d` volcar la pantalla actual, `a` volcar las 7 secciones. El script
+Wi-Fi, `d` volcar la pantalla actual, `a` volcar las 11 secciones, `h` cargar un historial
+interior de demostración. El script
 `python tools/fbdump.py COM4 a` genera los PNG de cada sección en `tools/out/` (así se hicieron
 las capturas de este README). Más detalles en [`docs/desarrollo.md`](docs/desarrollo.md).
 

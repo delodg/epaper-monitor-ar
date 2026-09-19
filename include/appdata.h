@@ -28,11 +28,64 @@ struct WeatherDay {
 };
 struct WeatherData {
   bool   valid;
-  float  temp, feels, hum, wind;
+  float  temp, feels, hum, wind, gust;
+  int16_t windDir;     // grados
   int8_t code;
   bool   isDay;
   WeatherDay day[4];   // hoy + 3 días
   time_t updated;
+};
+
+// ---- Mar: nivel del mar (marea), olas y agua (Open-Meteo Marine) ----
+#define MARINE_HOURS 48
+#define LEVEL_NONE   INT16_MIN
+struct TideExtreme {
+  time_t  t;
+  int16_t cm;
+  bool    high;
+};
+struct MarineData {
+  bool    valid;
+  time_t  t0;                    // epoch de la hora 0 de la serie
+  int16_t level[MARINE_HOURS];   // cm sobre el nivel medio; LEVEL_NONE = sin dato
+  TideExtreme ext[8];
+  uint8_t nExt;
+  float   waveNow, waveMax24, sst;   // m, m, °C (NAN si no hay dato)
+  float   cellLat, cellLon;          // celda del modelo que devolvió datos
+  time_t  updated;
+};
+
+// ---- Sol y luna ----
+struct SunData {
+  bool    valid;
+  int16_t sunrise, sunset;       // minutos desde medianoche (hoy)
+  int16_t sunriseT, sunsetT;     // mañana
+  int32_t daylight, daylightT;   // segundos
+  float   uvMax;
+  int8_t  mday;                  // día del mes al que corresponde
+  time_t  updated;
+};
+
+// ---- Economía ----
+struct EconData {
+  bool  valid;
+  int16_t riesgoPais;
+  char  riesgoFecha[6];          // "17/09"
+  float inflMensual, inflInteranual;
+  char  inflMes[4];              // "ago"
+  float euroCompra, euroVenta, realCompra, realVenta;
+  float btcUsd, ethUsd;
+  time_t updated;
+};
+
+// ---- Historial interior (una muestra cada 15 min, 24 h) ----
+#define INDOOR_SAMPLES 96
+struct IndoorHistory {
+  int16_t temp[INDOOR_SAMPLES];  // °C x10
+  uint8_t hum[INDOOR_SAMPLES];   // %
+  uint8_t head;                  // próxima posición a escribir
+  uint8_t count;
+  int32_t lastSlot;              // yday*96 + hora*4 + min/15 de la última muestra
 };
 
 // ---- Dólar (dolarapi.com) ----
@@ -93,6 +146,7 @@ struct AppState {
   char     ip[16];
   int8_t   rssi;
   uint8_t  lastError;         // código informativo para la pantalla Wi-Fi
+  bool     poweredOff;        // se durmió por "apagar": el próximo PWR sólo enciende
 };
 
 enum SyncError : uint8_t {
@@ -109,6 +163,10 @@ extern WeatherData g_weather;
 extern DolarData   g_dolar;
 extern NewsData    g_news;
 extern HolidayData g_holidays;
+extern MarineData  g_marine;
+extern SunData     g_sun;
+extern EconData    g_econ;
+extern IndoorHistory g_hist;
 extern IndoorData  g_indoor;
 extern int         g_batteryMv;
 extern struct tm   g_now;     // hora local actual (Argentina)
@@ -132,3 +190,7 @@ const char* monthShort(int mon);     // "Ene".."Dic"  (0..11)
 const char* monthLong(int mon);      // "enero".."diciembre"
 int  dayOfWeek(int y, int m, int d); // 0=domingo (m: 1..12)
 void formatHHMM(time_t epoch, char* out, size_t n);  // hora local "HH:MM"
+const char* windDirText(int deg);                    // "N", "NE", ... "NO"
+double moonPhase(time_t epoch);                      // 0 = nueva, 0.5 = llena
+const char* moonPhaseName(double phase);
+const char* uvText(float uv);

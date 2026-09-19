@@ -15,16 +15,22 @@ out_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "out")
 os.makedirs(out_dir, exist_ok=True)
 
 W, H, SCALE = 200, 200, 2
-NAMES = ["reloj", "clima", "dolar", "noticias", "feriados", "wifi", "sistema"]
+NAMES = ["reloj", "clima", "mar", "sol", "dolar", "economia", "noticias", "feriados", "interior", "wifi", "sistema"]
 
-with serial.Serial(port, 115200, timeout=1) as s:
+# OJO: abrir el puerto SIN activar DTR/RTS; en el USB-Serial/JTAG del ESP32-S3 eso resetea la placa.
+ser = serial.Serial()
+ser.port, ser.baudrate, ser.timeout = port, 115200, 1
+ser.dtr = False
+ser.rts = False
+ser.open()
+with ser as s:
     s.reset_input_buffer()
     s.write(cmd.encode())
     pages, cur, collecting, t0 = {}, None, False, time.time()
     while time.time() - t0 < 40:
         line = s.readline().decode("utf-8", "replace").strip()
         if not line:
-            if pages and not collecting and (cmd == "d" or len(pages) >= 7):
+            if pages and not collecting and (cmd == "d" or len(pages) >= len(NAMES)):
                 break
             continue
         if line.startswith("[fb-begin"):
@@ -34,7 +40,7 @@ with serial.Serial(port, 115200, timeout=1) as s:
             if len(data) == W * H // 8:
                 pages[cur] = data
             collecting = False
-            if cmd == "d" or len(pages) >= 7:
+            if cmd == "d" or len(pages) >= len(NAMES):
                 break
         elif collecting:
             buf.append(line)

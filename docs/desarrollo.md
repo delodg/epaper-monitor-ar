@@ -35,8 +35,19 @@ setup()
 En modo siempre encendido, `loop()` hace polling de botones, actualiza el reloj cada minuto,
 sincroniza cuando vence el intervalo y vuelve a deep-sleep si se desconecta la PC.
 
-Todo lo que se descarga vive en `RTC_DATA_ATTR` (sobrevive al deep-sleep, ~2 KB): si una
-descarga falla se conserva el dato anterior con su hora de actualización.
+Todo lo que se descarga vive en `RTC_DATA_ATTR` (sobrevive al deep-sleep, ~3 KB): si una
+descarga falla se conserva el dato anterior con su hora de actualización. Cada dato tiene
+su cadencia máxima (`*_MAX_AGE_S` en `config.h`), así una sincronización típica sólo baja
+dólar y noticias y la batería rinde más.
+
+### Mar (mareas)
+
+Open-Meteo Marine sólo devuelve datos en celdas oceánicas: `fetchMarine()` prueba la
+ubicación y luego celdas 0.25° más al este (hasta `GEO_TRIES_EAST`), prefiriendo una que
+traiga olas, y recuerda la celda que funcionó. Los extremos (pleamar/bajamar) se calculan
+del nivel horario con interpolación parabólica; las alturas se muestran sobre el mínimo de
+la serie de 48 h (aproxima el datum de las tablas de marea). Para ciudades sin costa la
+sección muestra "sin datos del mar".
 
 ## Comandos por serie (modo siempre encendido)
 
@@ -47,7 +58,8 @@ descarga falla se conserva el dato anterior con su hora de actualización.
 | `f` | forzar refresco completo |
 | `w` | abrir el portal Wi-Fi |
 | `d` | volcar la pantalla actual (base64) |
-| `a` | dibujar y volcar las 7 secciones sin refrescar el panel |
+| `a` | dibujar y volcar las 11 secciones sin refrescar el panel |
+| `h` | llenar el historial interior con datos de demostración (para probar la UI) |
 
 ## Ver la pantalla desde la PC
 
@@ -89,6 +101,10 @@ Con el USB nativo del ESP32-S3, en deep-sleep el puerto COM desaparece y sólo r
 - `sntp_get_sync_status()` devuelve `COMPLETED` **una sola vez** y se resetea: guardar el
   resultado en una variable.
 - Las fuentes Helvetica de U8g2 no tienen `…` ni `→`.
+- **Abrir el puerto serie con DTR/RTS activos resetea la placa** (lógica de auto-reset del
+  USB-Serial/JTAG). pyserial los activa por defecto: crear `Serial()`, poner `dtr = rts = False`
+  y recién entonces `open()` (así lo hace `tools/fbdump.py`). Con `pio device monitor` usar
+  `--dtr 0 --rts 0` o `monitor_dtr = 0` / `monitor_rts = 0` en `platformio.ini`.
 
 ## Agregar una fuente de noticias
 
