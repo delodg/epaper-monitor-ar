@@ -60,6 +60,7 @@ static U8G2_FOR_ADAFRUIT_GFX u8g2;
 #define F_B08    u8g2_font_helvB08_tf
 #define F_R08    u8g2_font_helvR08_tf
 #define F_TINY   u8g2_font_5x8_tf
+#define F_R24    u8g2_font_helvR24_tf
 
 static const int LINE_H8 = 11;   // interlineado para fuentes de 8 px
 
@@ -69,6 +70,23 @@ static int  tw(const char* s) { return u8g2.getUTF8Width(s); }
 static void text(int x, int y, const char* s) { u8g2.setCursor(x, y); u8g2.print(s); }
 static void textRight(int xr, int y, const char* s) { text(xr - tw(s), y, s); }
 static void textCenter(int cx, int y, const char* s) { text(cx - tw(s) / 2, y, s); }
+
+// Texto con letras espaciadas (overlines estilo "tracking"); respeta UTF-8.
+static int textSpaced(int x, int y, const char* s, int spacing) {
+  const char* p = s;
+  while (*p) {
+    int len = 1;
+    if (((uint8_t)*p & 0xE0) == 0xC0) len = 2;
+    else if (((uint8_t)*p & 0xF0) == 0xE0) len = 3;
+    else if (((uint8_t)*p & 0xF8) == 0xF0) len = 4;
+    char ch[5] = {0};
+    memcpy(ch, p, len);
+    text(x, y, ch);
+    x += tw(ch) + spacing;
+    p += len;
+  }
+  return x;
+}
 
 // Acorta con "..." hasta que entre en maxW (respetando UTF-8). Las fuentes Helvetica de
 // U8g2 son Latin-1: no tienen el glifo "…", por eso tres puntos.
@@ -990,22 +1008,37 @@ void dumpAllPages(uint8_t currentPage) {
 }
 
 void renderSplash(const char* status) {
+  // Portada minimalista: jerarquía tipográfica, sin marco, mucho aire.
+  const int M = 16;                       // margen izquierdo/derecho
   display.setFullWindow();
   display.fillScreen(GxEPD_WHITE);
-  // Marco doble con padding interior (el contenido no se acerca al borde)
-  display.drawRect(8, 8, W - 16, H - 16, GxEPD_BLACK);
-  display.drawRect(10, 10, W - 20, H - 20, GxEPD_BLACK);
-  // Logo DELO (bitmap 1 bit generado desde Figma) centrado
-  display.drawBitmap((W - LOGO_DELO_W) / 2, 66, LOGO_DELO, LOGO_DELO_W, LOGO_DELO_H, GxEPD_BLACK);
-  font(F_B12);
-  textCenter(W / 2, 114, "Argentina");
-  display.drawFastHLine(56, 128, W - 112, GxEPD_BLACK);
-  font(F_R08);
-  textCenter(W / 2, 152, status);
-  char buf[40];
-  snprintf(buf, sizeof(buf), "ePaper Monitor v%s", FW_VERSION);
+
+  // Overline con tracking + barra de acento
   font(F_TINY);
-  textCenter(W / 2, 176, buf);
+  textSpaced(M, 44, "ARGENTINA", 3);
+  display.fillRect(M, 50, 28, 3, GxEPD_BLACK);
+
+  // Nombre de la app: "ePaper" liviano + "Monitor" en negrita
+  font(F_R24);
+  text(M - 1, 86, "ePaper");
+  font(F_BIG);
+  text(M - 1, 114, "Monitor");
+
+  // Tagline
+  font(F_R08);
+  text(M, 132, "Hora · Clima · Mar · Dólar · Noticias");
+
+  // Estado (con un pequeño indicador)
+  display.fillRect(M, 148, 3, 3, GxEPD_BLACK);
+  text(M + 8, 151, status);
+
+  // Firma: logo chico + versión, sobre una línea fina
+  display.drawFastHLine(M, 168, W - 2 * M, GxEPD_BLACK);
+  display.drawBitmap(M, 178, LOGO_DELO, LOGO_DELO_W, LOGO_DELO_H, GxEPD_BLACK);
+  char buf[24];
+  snprintf(buf, sizeof(buf), "v%s", FW_VERSION);
+  font(F_TINY);
+  textRight(W - M, 189, buf);
   display.display(false);
 }
 

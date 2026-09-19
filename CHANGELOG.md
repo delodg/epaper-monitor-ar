@@ -2,7 +2,7 @@
 
 ## 1.1.0 — 2026-09-18
 
-- Portada con el logo DELO grande (bitmap desde Figma) y "Argentina" debajo; comando `S`.
+- Portada tipográfica moderna: nombre de la app, overline "Argentina", tagline, estado y el logo DELO chico como firma (bitmap desde Figma); comando `S`.
 
 - Nuevas secciones: **Mar** (curva de marea 24 h, pleamares/bajamares, olas, agua, viento),
   **Sol y Luna** (amanecer/atardecer, duración del día, UV, fase lunar hemisferio sur),
