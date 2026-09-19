@@ -2,6 +2,7 @@
 #include "config.h"
 #include "appdata.h"
 #include "board.h"
+#include "logo_delo.h"
 
 #include <SPI.h>
 #include <GxEPD2_BW.h>
@@ -991,17 +992,18 @@ void dumpAllPages(uint8_t currentPage) {
 void renderSplash(const char* status) {
   display.setFullWindow();
   display.fillScreen(GxEPD_WHITE);
-  display.drawRect(6, 6, W - 12, H - 12, GxEPD_BLACK);
-  display.drawRect(8, 8, W - 16, H - 16, GxEPD_BLACK);
-  font(F_B14);
-  textCenter(W / 2, 62, "ePaper Monitor");
-  font(F_BIG);
-  textCenter(W / 2, 96, "Argentina");
-  drawWeatherIcon(W / 2 - 20, 104, 40, ICO_SUNCLOUD);
+  display.drawRect(2, 2, W - 4, H - 4, GxEPD_BLACK);
+  display.drawRect(4, 4, W - 8, H - 8, GxEPD_BLACK);
+  // Logo DELO grande (bitmap 1 bit generado desde Figma) centrado
+  display.drawBitmap((W - LOGO_DELO_W) / 2, 62, LOGO_DELO, LOGO_DELO_W, LOGO_DELO_H, GxEPD_BLACK);
+  font(F_B12);
+  textCenter(W / 2, 118, "Argentina");
+  display.drawFastHLine(40, 132, W - 80, GxEPD_BLACK);
   font(F_R08);
-  textCenter(W / 2, 160, status);
-  char buf[32];
-  snprintf(buf, sizeof(buf), "v%s · Waveshare ESP32-S3", FW_VERSION);
+  textCenter(W / 2, 156, status);
+  char buf[40];
+  snprintf(buf, sizeof(buf), "ePaper Monitor v%s", FW_VERSION);
+  font(F_TINY);
   textCenter(W / 2, 184, buf);
   display.display(false);
 }

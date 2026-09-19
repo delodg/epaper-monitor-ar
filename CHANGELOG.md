@@ -2,6 +2,8 @@
 
 ## 1.1.0 — 2026-09-18
 
+- Portada con el logo DELO grande (bitmap desde Figma) y "Argentina" debajo; comando `S`.
+
 - Nuevas secciones: **Mar** (curva de marea 24 h, pleamares/bajamares, olas, agua, viento),
   **Sol y Luna** (amanecer/atardecer, duración del día, UV, fase lunar hemisferio sur),
   **Economía** (riesgo país, inflación, euro/real, BTC/ETH) e **Interior** (historial 24 h).

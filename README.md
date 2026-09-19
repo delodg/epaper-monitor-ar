@@ -7,17 +7,17 @@ ciudad (ubicación automática)**, **mareas, olas y viento**, **sol y luna**, **
 **temperatura/humedad interior con historial**. Navegación con los dos botones de la placa
 al estilo M5StickC, portal Wi-Fi con QR y modo de bajo consumo para batería.
 
-| Reloj | Clima | Mar | Sol y Luna |
+| Portada | Reloj | Clima | Mar |
 |---|---|---|---|
-| ![](docs/img/01-reloj.png) | ![](docs/img/02-clima.png) | ![](docs/img/03-mar.png) | ![](docs/img/04-sol.png) |
+| ![](docs/img/00-portada.png) | ![](docs/img/01-reloj.png) | ![](docs/img/02-clima.png) | ![](docs/img/03-mar.png) |
 
-| Dólar | Economía | Noticias | Feriados |
+| Sol y Luna | Dólar | Economía | Noticias |
 |---|---|---|---|
-| ![](docs/img/05-dolar.png) | ![](docs/img/06-economia.png) | ![](docs/img/07-noticias.png) | ![](docs/img/08-feriados.png) |
+| ![](docs/img/04-sol.png) | ![](docs/img/05-dolar.png) | ![](docs/img/06-economia.png) | ![](docs/img/07-noticias.png) |
 
-| Interior | Wi-Fi | Sistema |
-|---|---|---|
-| ![](docs/img/09-interior.png) | ![](docs/img/10-wifi.png) | ![](docs/img/11-sistema.png) |
+| Feriados | Interior | Wi-Fi | Sistema |
+|---|---|---|---|
+| ![](docs/img/08-feriados.png) | ![](docs/img/09-interior.png) | ![](docs/img/10-wifi.png) | ![](docs/img/11-sistema.png) |
 
 *(capturas reales tomadas del framebuffer de la placa con `tools/fbdump.py`)*
 
@@ -174,6 +174,7 @@ src/net_extra.cpp     mar (mareas), sol y economía
 src/ui.*              render de las 11 secciones (GxEPD2 + U8g2), íconos, QR, volcado de pantalla
 src/rtc_pcf85063.*    driver mínimo del RTC
 src/shtc3.*           driver mínimo del sensor
+tools/logo/           logo DELO exportado de Figma + make_logo.py (genera include/logo_delo.h, bitmap 1 bit)
 tools/fbdump.py       captura la pantalla por USB y la guarda como PNG
 tools/flash_catch.py  graba el firmware "cazando" la ventana en que la placa despierta
 firmware/             imagen precompilada lista para grabar
@@ -184,8 +185,8 @@ docs/                 hardware, desarrollo e imágenes
 
 Con la placa conectada por USB (modo siempre encendido) se aceptan comandos por el puerto
 serie (115200): `n`/`p` cambiar de sección, `s` sincronizar, `f` refresco completo, `w` portal
-Wi-Fi, `d` volcar la pantalla actual, `a` volcar las 11 secciones, `h` cargar un historial
-interior de demostración. El script
+Wi-Fi, `d` volcar la pantalla actual, `a` volcar las 11 secciones, `S` mostrar la portada,
+`h` cargar un historial interior de demostración. El script
 `python tools/fbdump.py COM4 a` genera los PNG de cada sección en `tools/out/` (así se hicieron
 las capturas de este README). Más detalles en [`docs/desarrollo.md`](docs/desarrollo.md).
 

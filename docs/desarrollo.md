@@ -60,6 +60,14 @@ sección muestra "sin datos del mar".
 | `d` | volcar la pantalla actual (base64) |
 | `a` | dibujar y volcar las 11 secciones sin refrescar el panel |
 | `h` | llenar el historial interior con datos de demostración (para probar la UI) |
+| `S` | mostrar la portada (logo) |
+
+## Logo de la portada
+
+`tools/logo/logo_figma.png` es el wordmark DELO exportado de Figma (170x28, negro sobre
+transparente). `python tools/logo/make_logo.py 188` lo convierte a `include/logo_delo.h`
+(bitmap 1 bit, MSB primero, bit=1 negro) que `renderSplash()` dibuja con `drawBitmap()`.
+Para cambiar el logo: reemplazar el PNG y volver a correr el script.
 
 ## Ver la pantalla desde la PC
 

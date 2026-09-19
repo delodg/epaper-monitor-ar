@@ -264,7 +264,7 @@ void setup() {
   UI::begin(s_coldBoot);
   if (powerOff) doPowerOff();
 
-  if (s_coldBoot) UI::renderSplash(Net::hasCredentials() ? "Conectando a Wi-Fi…" : "Wi-Fi sin configurar");
+  if (s_coldBoot) UI::renderSplash(Net::hasCredentials() ? "Conectando a Wi-Fi..." : "Wi-Fi sin configurar");
 
   if (openPortal || (s_coldBoot && !Net::hasCredentials())) {
     portalFlow();
@@ -336,6 +336,7 @@ void loop() {
       case 'd': UI::dumpBuffer(g_state.page); break;
       case 'a': UI::dumpAllPages(g_state.page); break;
       case 'w': portalFlow(); changed = true; break;
+      case 'S': UI::renderSplash("Conectando a Wi-Fi..."); s_forceFull = true; break;   // ver la portada
       case 'h': {   // demo: llena el historial interior con datos sintéticos (para probar la UI)
         g_hist.count = INDOOR_SAMPLES; g_hist.head = 0;
         for (int i = 0; i < INDOOR_SAMPLES; i++) {
