@@ -992,19 +992,20 @@ void dumpAllPages(uint8_t currentPage) {
 void renderSplash(const char* status) {
   display.setFullWindow();
   display.fillScreen(GxEPD_WHITE);
-  display.drawRect(2, 2, W - 4, H - 4, GxEPD_BLACK);
-  display.drawRect(4, 4, W - 8, H - 8, GxEPD_BLACK);
-  // Logo DELO grande (bitmap 1 bit generado desde Figma) centrado
-  display.drawBitmap((W - LOGO_DELO_W) / 2, 62, LOGO_DELO, LOGO_DELO_W, LOGO_DELO_H, GxEPD_BLACK);
+  // Marco doble con padding interior (el contenido no se acerca al borde)
+  display.drawRect(8, 8, W - 16, H - 16, GxEPD_BLACK);
+  display.drawRect(10, 10, W - 20, H - 20, GxEPD_BLACK);
+  // Logo DELO (bitmap 1 bit generado desde Figma) centrado
+  display.drawBitmap((W - LOGO_DELO_W) / 2, 66, LOGO_DELO, LOGO_DELO_W, LOGO_DELO_H, GxEPD_BLACK);
   font(F_B12);
-  textCenter(W / 2, 118, "Argentina");
-  display.drawFastHLine(40, 132, W - 80, GxEPD_BLACK);
+  textCenter(W / 2, 114, "Argentina");
+  display.drawFastHLine(56, 128, W - 112, GxEPD_BLACK);
   font(F_R08);
-  textCenter(W / 2, 156, status);
+  textCenter(W / 2, 152, status);
   char buf[40];
   snprintf(buf, sizeof(buf), "ePaper Monitor v%s", FW_VERSION);
   font(F_TINY);
-  textCenter(W / 2, 184, buf);
+  textCenter(W / 2, 176, buf);
   display.display(false);
 }
 

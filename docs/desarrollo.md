@@ -65,7 +65,7 @@ sección muestra "sin datos del mar".
 ## Logo de la portada
 
 `tools/logo/logo_figma.png` es el wordmark DELO exportado de Figma (170x28, negro sobre
-transparente). `python tools/logo/make_logo.py 188` lo convierte a `include/logo_delo.h`
+transparente). `python tools/logo/make_logo.py 140` lo convierte a `include/logo_delo.h`
 (bitmap 1 bit, MSB primero, bit=1 negro) que `renderSplash()` dibuja con `drawBitmap()`.
 Para cambiar el logo: reemplazar el PNG y volver a correr el script.
 
