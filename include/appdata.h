@@ -16,6 +16,7 @@ struct Config {
   uint16_t intervalMin;     // minutos entre sincronizaciones
   char     news[12];        // fuente de noticias (clave)
   bool     alwaysOn;        // true = sin deep-sleep (ideal con USB)
+  bool     darkMode;        // true = pantalla invertida (fondo negro, tinta blanca)
 };
 
 // ---- Clima (Open-Meteo) ----

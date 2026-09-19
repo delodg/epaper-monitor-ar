@@ -10,6 +10,7 @@ void renderSplash(const char* status);          // pantalla de arranque
 void renderPortal();                            // instrucciones + QR del portal Wi-Fi
 void renderMessage(const char* title, const char* line1, const char* line2, bool fullRefresh = true);
 void hibernate();                               // deja el panel en deep-sleep (conserva la imagen)
+void setDarkMode(bool on);                      // tema: false = claro, true = oscuro (invertido)
 void dumpBuffer(uint8_t page);                  // vuelca el buffer por serie (base64) para verlo en la PC
 void dumpAllPages(uint8_t currentPage);         // dibuja y vuelca las 7 secciones (sin refrescar el panel)
 

@@ -29,7 +29,10 @@ class ShadowDisplay : public GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT> {
  public:
   explicit ShadowDisplay(GxEPD2_154_D67 epd) : GxEPD2_BW(epd) { memset(shadow, 0xFF, sizeof(shadow)); }
   uint8_t shadow[W * H / 8];
+  bool dark = false;                 // modo oscuro: se invierte cada píxel al dibujar
+  inline uint16_t map(uint16_t c) const { return dark ? (c == GxEPD_WHITE ? GxEPD_BLACK : GxEPD_WHITE) : c; }
   void drawPixel(int16_t x, int16_t y, uint16_t color) override {
+    color = map(color);
     GxEPD2_BW::drawPixel(x, y, color);
     switch (getRotation()) {           // misma transformación que GxEPD2_BW
       case 1: { int16_t t = x; x = W - y - 1; y = t; break; }
@@ -43,6 +46,7 @@ class ShadowDisplay : public GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT> {
     else shadow[i] &= ~(1 << (7 - x % 8));
   }
   void fillScreen(uint16_t color) override {
+    color = map(color);
     GxEPD2_BW::fillScreen(color);
     memset(shadow, color == GxEPD_WHITE ? 0xFF : 0x00, sizeof(shadow));
   }
@@ -603,7 +607,7 @@ static void pageWifi() {
   snprintf(buf, sizeof(buf), "Ciudad: %s", g_cfg.cityName); text(4, y, fit(buf, W - 8).c_str()); y += LINE_H8;
   const NewsSource* ns = findNewsSource(g_cfg.news);
   snprintf(buf, sizeof(buf), "Noticias: %s", ns ? ns->name : g_cfg.news); text(4, y, buf); y += LINE_H8;
-  snprintf(buf, sizeof(buf), "Modo: %s", g_alwaysOn ? (g_usbHost && !g_cfg.alwaysOn ? "siempre encendido (USB)" : "siempre encendido") : "bajo consumo"); text(4, y, buf); y += LINE_H8;
+  snprintf(buf, sizeof(buf), "Modo: %s · tema %s", g_alwaysOn ? (g_usbHost && !g_cfg.alwaysOn ? "siempre on (USB)" : "siempre on") : "bajo consumo", g_cfg.darkMode ? "oscuro" : "claro"); text(4, y, fit(buf, W - 8).c_str()); y += LINE_H8;
 
   hline(y - 4);
   y += 8;
@@ -628,7 +632,7 @@ static void pageSystem() {
   text(4, y, buf); y += LINE_H8;
   snprintf(buf, sizeof(buf), "Firmware: ePaper Monitor AR v%s", FW_VERSION); text(4, y, buf); y += LINE_H8;
   text(4, y, fit("Placa: Waveshare ePaper-1.54 (S3) V2", W - 8).c_str()); y += LINE_H8;
-  snprintf(buf, sizeof(buf), "Modo: %s", g_alwaysOn ? (g_usbHost && !g_cfg.alwaysOn ? "siempre encendido (USB)" : "siempre encendido") : "bajo consumo (deep-sleep)"); text(4, y, buf); y += LINE_H8;
+  snprintf(buf, sizeof(buf), "Modo: %s · tema %s", g_alwaysOn ? (g_usbHost && !g_cfg.alwaysOn ? "siempre on (USB)" : "siempre on") : "bajo consumo", g_cfg.darkMode ? "oscuro" : "claro"); text(4, y, fit(buf, W - 8).c_str()); y += LINE_H8;
   snprintf(buf, sizeof(buf), "Arranques: %lu · Intervalo: %u min", (unsigned long)g_state.bootCount, g_cfg.intervalMin); text(4, y, buf); y += LINE_H8;
   snprintf(buf, sizeof(buf), "RAM libre: %u KB · PSRAM: %u KB", (unsigned)(ESP.getFreeHeap() / 1024), (unsigned)(ESP.getFreePsram() / 1024)); text(4, y, buf); y += LINE_H8;
   uint8_t mac[6]; WiFi.macAddress(mac);
@@ -767,6 +771,10 @@ static void pageMarine() {
 // ============================================================================
 static void drawMoon(int cx, int cy, int r, double phase) {
   // Hemisferio sur: la luna creciente se ilumina por la IZQUIERDA.
+  // La luna usa colores físicos (iluminado = blanco real) sin importar el tema: como el
+  // buffer invierte en modo oscuro, se pasan los colores "al revés" para compensar.
+  const uint16_t litSide  = g_cfg.darkMode ? GxEPD_BLACK : GxEPD_WHITE;
+  const uint16_t darkSide = g_cfg.darkMode ? GxEPD_WHITE : GxEPD_BLACK;
   display.drawCircle(cx, cy, r, GxEPD_BLACK);
   display.drawCircle(cx, cy, r - 1, GxEPD_BLACK);
   float t = cosf(2.0f * (float)M_PI * (float)phase);   // 1 nueva ... -1 llena ... 1
@@ -778,9 +786,8 @@ static void drawMoon(int cx, int cy, int r, double phase) {
     int a, b;                              // tramo iluminado en x relativo al centro (hemisferio norte)
     if (waxing) { a = xT; b = w; } else { a = -w; b = -xT; }
     int sa = -b, sb = -a;                  // espejado para el hemisferio sur
-    // en tinta electrónica lo "iluminado" queda blanco: pintar de negro lo que NO está iluminado
-    if (sa > -w) display.drawFastHLine(cx - w, cy + dy, sa + w, GxEPD_BLACK);
-    if (sb < w)  display.drawFastHLine(cx + sb + 1, cy + dy, w - sb, GxEPD_BLACK);
+    display.drawFastHLine(cx - w, cy + dy, 2 * w + 1, darkSide);            // disco en sombra
+    if (sb >= sa) display.drawFastHLine(cx + sa, cy + dy, sb - sa + 1, litSide);  // parte iluminada
   }
 }
 
@@ -991,9 +998,12 @@ static void drawPage(uint8_t page) {
 }
 
 void render(uint8_t page, bool fullRefresh) {
+  display.dark = g_cfg.darkMode;
   drawPage(page);
   display.display(!fullRefresh);
 }
+
+void setDarkMode(bool on) { display.dark = on; }
 
 void dumpBuffer(uint8_t page) {
   Serial.printf("[fb-begin %u]\n", page);
@@ -1003,6 +1013,7 @@ void dumpBuffer(uint8_t page) {
 }
 
 void dumpAllPages(uint8_t currentPage) {
+  display.dark = g_cfg.darkMode;
   for (uint8_t p = 0; p < PAGE_COUNT; p++) { drawPage(p); dumpBuffer(p); }
   drawPage(currentPage);   // dejar el buffer como estaba
 }
@@ -1010,6 +1021,7 @@ void dumpAllPages(uint8_t currentPage) {
 void renderSplash(const char* status) {
   // Portada minimalista: jerarquía tipográfica, sin marco, mucho aire.
   const int M = 16;                       // margen izquierdo/derecho
+  display.dark = g_cfg.darkMode;
   display.setFullWindow();
   display.fillScreen(GxEPD_WHITE);
 
@@ -1043,6 +1055,7 @@ void renderSplash(const char* status) {
 }
 
 void renderPortal() {
+  display.dark = g_cfg.darkMode;
   display.setFullWindow();
   display.fillScreen(GxEPD_WHITE);
   font(F_B12);
@@ -1089,6 +1102,7 @@ void renderPortal() {
 }
 
 void renderMessage(const char* title, const char* line1, const char* line2, bool fullRefresh) {
+  display.dark = g_cfg.darkMode;
   display.setFullWindow();
   display.fillScreen(GxEPD_WHITE);
   font(F_B14);

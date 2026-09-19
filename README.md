@@ -1,5 +1,12 @@
 # ePaper Monitor AR
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/hero-dark.png">
+    <img src="docs/img/hero-light.png" alt="ePaper Monitor AR: las 12 pantallas en dispositivos" width="100%">
+  </picture>
+</p>
+
 Firmware para la placa **Waveshare ESP32-S3-ePaper-1.54 (V2)**: un monitor de escritorio
 argentino en tinta electrónica con **hora sincronizada por NTP (Argentina)**, **clima de tu
 ciudad (ubicación automática)**, **mareas, olas y viento**, **sol y luna**, **dólar**,
@@ -19,7 +26,9 @@ al estilo M5StickC, portal Wi-Fi con QR y modo de bajo consumo para batería.
 |---|---|---|---|
 | ![](docs/img/08-feriados.png) | ![](docs/img/09-interior.png) | ![](docs/img/10-wifi.png) | ![](docs/img/11-sistema.png) |
 
-*(capturas reales tomadas del framebuffer de la placa con `tools/fbdump.py`)*
+*(capturas reales tomadas del framebuffer de la placa con `tools/fbdump.py`; las versiones en
+**modo oscuro** están en [`docs/img/dark/`](docs/img/dark/) y el hero de arriba cambia según el
+tema de tu GitHub)*
 
 Inspirado en [VolosR/waveshareEinkMonitor](https://github.com/VolosR/waveshareEinkMonitor)
 (reloj + sensor SHTC3 con deep-sleep), reescrito desde cero con Wi-Fi, datos en línea,
@@ -57,6 +66,8 @@ Inspirado en [VolosR/waveshareEinkMonitor](https://github.com/VolosR/waveshareEi
   cada 15 min para los datos; cada dato tiene su propia cadencia: clima 30 min, mar 3 h,
   economía 1 h, sol y feriados una vez por día). Con una PC conectada por USB queda
   "siempre encendido" automáticamente (así el puerto COM no desaparece).
+- **Tema claro u oscuro** (tinta negra sobre blanco o pantalla invertida), seleccionable en el
+  portal o con el comando `t`; se recuerda entre reinicios.
 - Tipografías con acentos (U8g2), íconos de clima dibujados por código, refresco parcial
   rápido y refresco completo periódico contra el ghosting.
 
@@ -98,7 +109,7 @@ para grabar en la dirección `0x0`. Con [esptool](https://docs.espressif.com/pro
 instalado (`pip install esptool`):
 
 ```bash
-esptool --chip esp32s3 --port COM4 --baud 460800 write-flash 0x0 firmware/epaper-monitor-ar-v1.1.0-merged.bin
+esptool --chip esp32s3 --port COM4 --baud 460800 write-flash 0x0 firmware/epaper-monitor-ar-v1.2.0-merged.bin
 ```
 
 (Reemplazá `COM4` por el puerto de tu placa. En Linux/macOS suele ser `/dev/ttyACM0`.)
@@ -127,6 +138,7 @@ librerías (GxEPD2, U8g2_for_Adafruit_GFX, WiFiManager, ArduinoJson, QRCode) se 
    - **Intervalo** de actualización de datos: 5–120 min (por defecto 15).
    - **Noticias**: `clarin`, `ambito`, `perfil`, `bbc` o `lanacion`.
    - **Siempre encendido**: desactiva el deep-sleep aunque no haya PC conectada.
+   - **Modo oscuro**: pantalla invertida (fondo negro, tinta blanca).
 4. La placa sincroniza la hora, se geolocaliza y descarga todos los datos.
 
 Para volver al portal en cualquier momento: **BOOT** 2 s. El portal se cierra solo a los 5 min.
@@ -176,6 +188,7 @@ src/rtc_pcf85063.*    driver mínimo del RTC
 src/shtc3.*           driver mínimo del sensor
 tools/logo/           logo DELO exportado de Figma + make_logo.py (genera include/logo_delo.h, bitmap 1 bit)
 tools/fbdump.py       captura la pantalla por USB y la guarda como PNG
+tools/make_hero.py    compone las imágenes hero del README (claro/oscuro) con las capturas
 tools/flash_catch.py  graba el firmware "cazando" la ventana en que la placa despierta
 firmware/             imagen precompilada lista para grabar
 docs/                 hardware, desarrollo e imágenes
@@ -186,7 +199,7 @@ docs/                 hardware, desarrollo e imágenes
 Con la placa conectada por USB (modo siempre encendido) se aceptan comandos por el puerto
 serie (115200): `n`/`p` cambiar de sección, `s` sincronizar, `f` refresco completo, `w` portal
 Wi-Fi, `d` volcar la pantalla actual, `a` volcar las 11 secciones, `S` mostrar la portada,
-`h` cargar un historial interior de demostración. El script
+`t` alternar tema claro/oscuro, `h` cargar un historial interior de demostración. El script
 `python tools/fbdump.py COM4 a` genera los PNG de cada sección en `tools/out/` (así se hicieron
 las capturas de este README). Más detalles en [`docs/desarrollo.md`](docs/desarrollo.md).
 

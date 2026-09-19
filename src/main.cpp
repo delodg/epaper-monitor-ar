@@ -337,6 +337,12 @@ void loop() {
       case 'a': UI::dumpAllPages(g_state.page); break;
       case 'w': portalFlow(); changed = true; break;
       case 'S': UI::renderSplash("Conectando a Wi-Fi..."); s_forceFull = true; break;   // ver la portada
+      case 't':   // alternar tema claro/oscuro (queda guardado)
+        g_cfg.darkMode = !g_cfg.darkMode;
+        Net::saveConfig();
+        Serial.printf("[main] tema %s\n", g_cfg.darkMode ? "oscuro" : "claro");
+        s_forceFull = true; changed = true;
+        break;
       case 'h': {   // demo: llena el historial interior con datos sintéticos (para probar la UI)
         g_hist.count = INDOOR_SAMPLES; g_hist.head = 0;
         for (int i = 0; i < INDOOR_SAMPLES; i++) {

@@ -61,6 +61,15 @@ sección muestra "sin datos del mar".
 | `a` | dibujar y volcar las 11 secciones sin refrescar el panel |
 | `h` | llenar el historial interior con datos de demostración (para probar la UI) |
 | `S` | mostrar la portada (logo) |
+| `t` | alternar tema claro/oscuro (se guarda en NVS) |
+
+## Tema claro / oscuro
+
+El modo oscuro no redibuja nada distinto: `ShadowDisplay` invierte el color de cada píxel en
+`drawPixel()`/`fillScreen()` cuando `g_cfg.darkMode` está activo, así todas las secciones se
+invierten de forma consistente. Lo único que se dibuja con colores físicos es la luna
+(`drawMoon()`: la parte iluminada siempre queda blanca). El tema se elige en el portal
+("Modo oscuro") o con el comando `t`, y se guarda en Preferences.
 
 ## Logo de la portada
 

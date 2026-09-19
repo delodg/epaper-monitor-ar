@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0 — 2026-09-19
+
+- **Tema claro / oscuro** seleccionable (portal o comando `t`), con inversión en el buffer;
+  la luna conserva colores físicos.
+- Portada rediseñada (tipográfica, logo DELO chico como firma).
+- Hero del README en claro y oscuro (`tools/make_hero.py`) y capturas en modo oscuro.
+
 ## 1.1.0 — 2026-09-18
 
 - Portada tipográfica moderna: nombre de la app, overline "Argentina", tagline, estado y el logo DELO chico como firma (bitmap desde Figma); comando `S`.

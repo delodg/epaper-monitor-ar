@@ -40,6 +40,7 @@ void loadConfig() {
   g_cfg.lon         = p.getFloat("lon", DEFAULT_LON);
   g_cfg.intervalMin = p.getUShort("interval", DEFAULT_INTERVAL_MIN);
   g_cfg.alwaysOn    = p.getBool("alwayson", false);
+  g_cfg.darkMode    = p.getBool("dark", false);
   p.end();
   strlcpy(g_cfg.city, city.c_str(), sizeof(g_cfg.city));
   strlcpy(g_cfg.cityName, cname.c_str(), sizeof(g_cfg.cityName));
@@ -59,6 +60,7 @@ void saveConfig() {
   p.putFloat("lon", g_cfg.lon);
   p.putUShort("interval", g_cfg.intervalMin);
   p.putBool("alwayson", g_cfg.alwaysOn);
+  p.putBool("dark", g_cfg.darkMode);
   p.putUShort("cfgver", CFG_VERSION);
   p.end();
 }
@@ -135,12 +137,15 @@ bool runPortal() {
                              " list='newsList'");
   WiFiManagerParameter pAlways("alwayson", "Siempre encendido (sin ahorro de energ&iacute;a, usar con USB)", "1", 2,
                                g_cfg.alwaysOn ? " type='checkbox' checked" : " type='checkbox'", WFM_LABEL_AFTER);
+  WiFiManagerParameter pDark("dark", "Modo oscuro (pantalla invertida: fondo negro)", "1", 2,
+                             g_cfg.darkMode ? " type='checkbox' checked" : " type='checkbox'", WFM_LABEL_AFTER);
   wm.addParameter(&pHead);
   wm.addParameter(&pCity);
   wm.addParameter(&pInterval);
   wm.addParameter(&pNewsList);
   wm.addParameter(&pNews);
   wm.addParameter(&pAlways);
+  wm.addParameter(&pDark);
 
   std::vector<const char*> menu = {"wifi", "param", "info", "exit"};
   wm.setMenu(menu);
@@ -164,6 +169,7 @@ bool runPortal() {
   strlcpy(g_cfg.news, findNewsSource(news.c_str()) ? news.c_str() : DEFAULT_NEWS, sizeof(g_cfg.news));
 
   g_cfg.alwaysOn = (strlen(pAlways.getValue()) > 0);
+  g_cfg.darkMode = (strlen(pDark.getValue()) > 0);
   saveConfig();
 
   if (connected) updateLinkInfo();
