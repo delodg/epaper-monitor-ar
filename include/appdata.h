@@ -195,3 +195,4 @@ const char* windDirText(int deg);                    // "N", "NE", ... "NO"
 double moonPhase(time_t epoch);                      // 0 = nueva, 0.5 = llena
 const char* moonPhaseName(double phase);
 const char* uvText(float uv);
+const char* apPassword();                            // clave del portal, única por placa (prefijo + MAC)

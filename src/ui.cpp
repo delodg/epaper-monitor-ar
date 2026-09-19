@@ -615,7 +615,7 @@ static void pageWifi() {
   text(4, y, "Configurar red / ciudad / noticias:"); y += LINE_H8;
   font(F_R08);
   text(4, y, "Mantené BOOT 2 s: abre el portal"); y += LINE_H8;
-  snprintf(buf, sizeof(buf), "Red %s (clave %s)", AP_NAME, AP_PASSWORD); text(4, y, fit(buf, W - 8).c_str()); y += LINE_H8;
+  snprintf(buf, sizeof(buf), "Red %s (clave %s)", AP_NAME, apPassword()); text(4, y, fit(buf, W - 8).c_str()); y += LINE_H8;
   text(4, y, "Mantené PWR 2 s: actualizar ahora");
 }
 
@@ -1066,7 +1066,7 @@ void renderPortal() {
   QRCode qr;
   uint8_t qrData[160];
   char payload[64];
-  snprintf(payload, sizeof(payload), "WIFI:T:WPA;S:%s;P:%s;;", AP_NAME, AP_PASSWORD);
+  snprintf(payload, sizeof(payload), "WIFI:T:WPA;S:%s;P:%s;;", AP_NAME, apPassword());
   qrcode_initText(&qr, qrData, 3, ECC_LOW, payload);
   const int scale = 3, x0 = 4, y0 = 24;
   for (uint8_t y = 0; y < qr.size; y++)
@@ -1082,7 +1082,7 @@ void renderPortal() {
   font(F_R08);
   text(x, 68, "clave:");
   font(F_B08);
-  text(x + 32, 68, AP_PASSWORD);
+  text(x + 32, 68, apPassword());
   font(F_R08);
   text(x, 84, "2) Abrí en el");
   text(x, 95, "navegador:");

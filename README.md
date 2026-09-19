@@ -59,9 +59,11 @@ Inspirado en [VolosR/waveshareEinkMonitor](https://github.com/VolosR/waveshareEi
   (inamovible / trasladable / puente).
 - **Interior**: temperatura y humedad del sensor SHTC3 integrado con gráfico de las últimas
   24 h (una muestra cada 15 min); **batería** con porcentaje.
-- **Portal de configuración Wi-Fi** (WiFiManager) con **QR** en pantalla (red protegida con
-  clave): red, ciudad, intervalo de actualización, fuente de noticias y modo de energía. Sin
-  credenciales en el código.
+- **Portal de configuración Wi-Fi** (WiFiManager) con **QR** en pantalla (red WPA2 con clave
+  única por placa): red, ciudad, intervalo de actualización, fuente de noticias, tema y modo de
+  energía. Sin credenciales en el código.
+- **Seguro por defecto**: HTTPS con validación de certificados (bundle de CAs de Mozilla
+  embebido), sin puertos abiertos ni OTA, descargas acotadas. Ver [`SECURITY.md`](SECURITY.md).
 - **Bajo consumo**: deep-sleep entre actualizaciones (despierta cada minuto para el reloj,
   cada 15 min para los datos; cada dato tiene su propia cadencia: clima 30 min, mar 3 h,
   economía 1 h, sol y feriados una vez por día). Con una PC conectada por USB queda
@@ -131,8 +133,8 @@ librerías (GxEPD2, U8g2_for_Adafruit_GFX, WiFiManager, ArduinoJson, QRCode) se 
 ## Primer uso: configurar el Wi-Fi
 
 1. Al encender sin red configurada, la pantalla muestra un **QR** y las instrucciones.
-2. Escaneá el QR con el celular (o conectate a la red **`ePaperAR-Setup`**, clave
-   **`epaper-ar`**) y abrí `http://192.168.4.1`.
+2. Escaneá el QR con el celular (o conectate a la red **`ePaperAR-Setup`** con la clave que
+   muestra la pantalla, `epaper-xxxx`, única por placa) y abrí `http://192.168.4.1`.
 3. Elegí tu red Wi-Fi, ingresá la clave y guardá. Opcionalmente ajustá:
    - **Ciudad**: `auto` (geolocalización por la conexión) o el nombre de una ciudad argentina.
    - **Intervalo** de actualización de datos: 5–120 min (por defecto 15).
@@ -169,10 +171,11 @@ propia placa; en deep-sleep la lectura es más fiel.
 | Fase lunar | cálculo local (ciclo sinódico desde la luna nueva del 6/1/2000) |
 | Noticias | RSS públicos de cada medio |
 
-Privacidad y seguridad: las conexiones HTTPS se hacen **sin validar certificados**
-(`setInsecure()`), suficiente para datos públicos; la geolocalización envía sólo la IP pública
-(la del router) al servicio. No se guarda ninguna credencial en el repositorio: el Wi-Fi se
-configura en la placa y queda en su NVS.
+Privacidad y seguridad: las conexiones HTTPS **validan certificados** con el bundle de CAs
+raíz de Mozilla embebido en el firmware; la geolocalización envía sólo la IP pública (la del
+router) al servicio. No se guarda ninguna credencial en el repositorio ni en el binario: el
+Wi-Fi se configura en la placa y queda en su NVS. Modelo de amenazas y limitaciones en
+[`SECURITY.md`](SECURITY.md).
 
 ## Estructura del código
 
@@ -187,6 +190,9 @@ src/ui.*              render de las 11 secciones (GxEPD2 + U8g2), íconos, QR, v
 src/rtc_pcf85063.*    driver mínimo del RTC
 src/shtc3.*           driver mínimo del sensor
 tools/logo/           logo DELO exportado de Figma + make_logo.py (genera include/logo_delo.h, bitmap 1 bit)
+tools/gen_crt_bundle_v1.py  regenera certs/x509_crt_bundle (CAs raíz de Mozilla, formato del core 2.0.x)
+tools/pio_prefix_map.py     script previo de PlatformIO: rutas anonimizadas en el binario
+certs/                bundle de CAs raíz embebido en el firmware
 tools/fbdump.py       captura la pantalla por USB y la guarda como PNG
 tools/make_hero.py    compone las imágenes hero del README (claro/oscuro) con las capturas
 tools/flash_catch.py  graba el firmware "cazando" la ventana en que la placa despierta
@@ -212,6 +218,13 @@ las capturas de este README). Más detalles en [`docs/desarrollo.md`](docs/desar
   [WiFiManager](https://github.com/tzapu/WiFiManager), [ArduinoJson](https://arduinojson.org/),
   [QRCode](https://github.com/ricmoo/QRCode), Adafruit GFX.
 
+## Seguridad
+
+Ver [`SECURITY.md`](SECURITY.md): modelo de amenazas, medidas implementadas (TLS validado,
+portal con clave única por placa, descargas acotadas, backoff ante crashes, binario sin rutas
+personales) y limitaciones conocidas (NVS sin cifrar: acceso físico = acceso total).
+
 ## Licencia
 
-MIT — ver [`LICENSE`](LICENSE).
+MIT — ver [`LICENSE`](LICENSE). Fuentes de datos: ver sus términos de uso; Open-Meteo es
+CC BY 4.0 (uso no comercial).

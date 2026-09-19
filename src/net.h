@@ -1,5 +1,6 @@
 #pragma once
 #include <Arduino.h>
+#include <WiFiClientSecure.h>
 
 // Conectividad: Wi-Fi (WiFiManager), NTP y descarga de datos (clima, dólar,
 // feriados, noticias). Todo escribe en las estructuras globales de appdata.h.
@@ -27,6 +28,7 @@ bool fetchSun();                          // amanecer/atardecer/UV (Open-Meteo)
 bool fetchEcon();                         // riesgo país, inflación, euro/real, BTC/ETH
 
 // compartidos con net_extra.cpp
+void tlsSetup(WiFiClientSecure& c);       // validación de certificados con el bundle de CAs embebido
 bool httpGetString(const char* url, String& out);
 extern const char* USER_AGENT;
 

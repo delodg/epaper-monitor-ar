@@ -105,6 +105,21 @@ Con el USB nativo del ESP32-S3, en deep-sleep el puerto COM desaparece y sólo r
    demasiado cortas para Windows; conviene provocar una ventana larga con **PWR** 2 s
    (sincronización, ~10 s) o esperar la sincronización periódica.
 
+## TLS y bundle de CAs
+
+Las conexiones HTTPS validan certificados con `WiFiClientSecure::setCACertBundle()` y el
+bundle embebido `certs/x509_crt_bundle` (`board_build.embed_files` en `platformio.ini`). El
+core de Arduino 2.0.x sólo entiende el **formato v1** del bundle; el `gen_crt_bundle.py` de
+ESP-IDF 5.x genera v2 (con tabla de offsets) y cuelga el parser. Para regenerarlo con el
+listado raíz de Mozilla que trae ESP-IDF:
+
+```bash
+python tools/gen_crt_bundle_v1.py            # requiere el paquete `cryptography`
+```
+
+La validación necesita hora correcta (NTP o RTC): por eso `doSync()` sincroniza la hora antes
+de cualquier descarga. Para depurar sin validación: `-DTLS_INSECURE` en `build_flags`.
+
 ## Cosas que NO hacer (aprendidas a golpes)
 
 - **No usar `setCpuFrequencyMhz()`**: en el ESP32-S3 el cambio de reloj re-enumera el USB
@@ -118,6 +133,8 @@ Con el USB nativo del ESP32-S3, en deep-sleep el puerto COM desaparece y sólo r
 - `sntp_get_sync_status()` devuelve `COMPLETED` **una sola vez** y se resetea: guardar el
   resultado en una variable.
 - Las fuentes Helvetica de U8g2 no tienen `…` ni `→`.
+- **No usar `setInsecure()`** en el firmware de producción: el bundle de CAs ya está embebido.
+- Un comentario de C que termina en `\` es continuación de línea (tablas generadas).
 - **Abrir el puerto serie con RTS activo resetea la placa** (lógica de auto-reset del
   USB-Serial/JTAG), pero **sin DTR el driver HWCDC no transmite** (el volcado se traba).
   Con pyserial: crear `Serial()`, poner `dtr = True`, `rts = False` y recién entonces `open()`

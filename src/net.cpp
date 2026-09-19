@@ -114,6 +114,7 @@ void disconnect() {
 
 bool runPortal() {
   WiFiManager wm;
+  wm.setShowInfoErase(false);   // no exponer "borrar Wi-Fi" a quien entre al portal
   wm.setDebugOutput(false);
   wm.setTitle("ePaper Monitor AR");
   wm.setClass("invert");
@@ -121,7 +122,6 @@ bool runPortal() {
   wm.setConnectTimeout(20);
   wm.setBreakAfterConfig(true);
   wm.setShowInfoUpdate(false);
-  wm.setShowInfoErase(true);
 
   char intervalStr[6];
   snprintf(intervalStr, sizeof(intervalStr), "%u", g_cfg.intervalMin);
@@ -151,7 +151,7 @@ bool runPortal() {
   wm.setMenu(menu);
 
   Serial.printf("[net] Portal de configuración: red '%s' -> http://192.168.4.1\n", AP_NAME);
-  bool connected = wm.startConfigPortal(AP_NAME, AP_PASSWORD);
+  bool connected = wm.startConfigPortal(AP_NAME, apPassword());
 
   // Tomar los parámetros (si el usuario no guardó, quedan los valores previos)
   String city = pCity.getValue(); city.trim();
@@ -181,13 +181,44 @@ bool runPortal() {
 // ============================================================================
 //  HTTP helper
 // ============================================================================
-const char* USER_AGENT = "ePaperMonitorAR/" FW_VERSION " (ESP32-S3; +https://github.com)";
+const char* USER_AGENT = "ePaperMonitorAR/" FW_VERSION " (ESP32-S3; +https://github.com/delodg/epaper-monitor-ar)";
+
+// Bundle de CAs raíz (Mozilla) embebido por PlatformIO desde certs/x509_crt_bundle
+extern const uint8_t x509_crt_bundle_start[] asm("_binary_certs_x509_crt_bundle_start");
+
+void tlsSetup(WiFiClientSecure& c) {
+#ifdef TLS_INSECURE
+  c.setInsecure();                            // sólo para depurar: -DTLS_INSECURE
+#else
+  c.setCACertBundle(x509_crt_bundle_start);   // valida la cadena de certificados del servidor
+#endif
+}
+
+// Stream que acumula el cuerpo en una String hasta un tope; al superarlo hace "short write"
+// y HTTPClient aborta la descarga (respuestas gigantes no agotan la RAM).
+class BoundedStringSink : public Stream {
+ public:
+  BoundedStringSink(String& out, size_t maxLen) : _out(out), _limit(maxLen) { _out = ""; }
+  size_t write(uint8_t c) override { return write(&c, 1); }
+  size_t write(const uint8_t* buf, size_t n) override {
+    if (_out.length() + n > _limit) { overflow = true; return 0; }
+    return _out.concat((const char*)buf, n) ? n : 0;
+  }
+  int  available() override { return 0; }
+  int  read() override { return -1; }
+  int  peek() override { return -1; }
+  void flush() override {}
+  bool overflow = false;
+ private:
+  String& _out;
+  size_t  _limit;
+};
 
 bool httpGetString(const char* url, String& out) {
   WiFiClientSecure secure;
   WiFiClient plain;
   bool https = (strncmp(url, "https://", 8) == 0);
-  secure.setInsecure();                       // APIs públicas, sin datos sensibles
+  if (https) tlsSetup(secure);
   HTTPClient http;
   http.setReuse(false);
   http.setUserAgent(USER_AGENT);
@@ -202,8 +233,15 @@ bool httpGetString(const char* url, String& out) {
     http.end();
     return false;
   }
-  out = http.getString();
+  if (http.getSize() > (int)HTTP_MAX_BODY) {
+    Serial.printf("[http] respuesta demasiado grande (%d B) en %s\n", http.getSize(), url);
+    http.end();
+    return false;
+  }
+  BoundedStringSink sink(out, HTTP_MAX_BODY);
+  http.writeToStream(&sink);
   http.end();
+  if (sink.overflow) { Serial.printf("[http] respuesta truncada (> %u B) en %s\n", (unsigned)HTTP_MAX_BODY, url); return false; }
   return out.length() > 0;
 }
 
@@ -576,7 +614,7 @@ bool fetchNews() {
   if (!src) src = &NEWS_SOURCES[0];
 
   WiFiClientSecure client;
-  client.setInsecure();
+  tlsSetup(client);
   HTTPClient http;
   http.setReuse(false);
   http.setUserAgent(USER_AGENT);

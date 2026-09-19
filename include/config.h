@@ -44,8 +44,8 @@
 
 // ---- Portal de configuración Wi-Fi ----
 #define AP_NAME            "ePaperAR-Setup"
-#define AP_PASSWORD        "epaper-ar"       // >= 8 caracteres; se muestra en pantalla y va en el QR
-#define PORTAL_TIMEOUT_S   300
+#define AP_PASSWORD_PREFIX "epaper-"         // clave = prefijo + últimos 4 hex del MAC (única por placa);
+#define PORTAL_TIMEOUT_S   300               // se muestra en pantalla y va en el QR: ver apPassword()
 
 // ---- Valores por defecto (configurables desde el portal) ----
 // Ciudad "auto" = geolocalización por la conexión (IP pública de la red Wi-Fi), a nivel ciudad.
@@ -73,6 +73,8 @@
 #define FULL_REFRESH_EVERY_MIN   60     // refresco completo periódico (evita ghosting)
 #define WIFI_CONNECT_TIMEOUT_MS  20000
 #define HTTP_TIMEOUT_MS          12000
+#define HTTP_MAX_BODY            (64 * 1024)   // tope de respuesta HTTP (contra respuestas hostiles)
+#define CRASH_BACKOFF_COUNT      3             // reinicios por error seguidos que posponen la sync
 #define NEWS_MAX_TITLES          6
 #define NEWS_MAX_BYTES           150000 // tope de lectura del RSS
 

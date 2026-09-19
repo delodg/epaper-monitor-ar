@@ -1,4 +1,17 @@
 #include "appdata.h"
+#include <esp_system.h>
+
+// Clave del portal Wi-Fi: prefijo + últimos 4 dígitos hex del MAC de fábrica (>= 8 caracteres).
+// Única por placa y visible sólo en la pantalla, en vez de una clave publicada en el repo.
+const char* apPassword() {
+  static char pwd[24] = {0};
+  if (!pwd[0]) {
+    uint8_t mac[6] = {0};
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    snprintf(pwd, sizeof(pwd), "%s%02x%02x", AP_PASSWORD_PREFIX, mac[4], mac[5]);
+  }
+  return pwd;
+}
 
 // ---- Fuentes de noticias (RSS). Probadas el 2026-09: Infobae, Página/12, TN y La Voz bloquean bots ----
 const NewsSource NEWS_SOURCES[] = {

@@ -44,7 +44,7 @@ class TailSink : public Stream {
 // Descarga un arreglo JSON grande (decenas de KB) y deja en `doc` sólo su último objeto.
 static bool httpGetLastObject(const char* url, JsonDocument& doc) {
   WiFiClientSecure client;
-  client.setInsecure();
+  tlsSetup(client);
   HTTPClient http;
   http.setReuse(false);
   http.setUserAgent(USER_AGENT);

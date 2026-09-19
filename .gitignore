@@ -15,3 +15,8 @@ __pycache__/
 # SO
 .DS_Store
 Thumbs.db
+
+# Material de marca externo (no se publica por ahora)
+docs/img/dato_media_kit/
+docs/img/dato_logo_master.svg
+docs/img/dato_media_kit.zip

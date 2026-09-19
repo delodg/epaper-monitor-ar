@@ -2,6 +2,11 @@
 
 ## 1.2.0 — 2026-09-19
 
+- **Seguridad**: HTTPS con validación de certificados (bundle de CAs de Mozilla embebido),
+  clave del portal única por placa (derivada del MAC), descargas acotadas a 64 KB, pila del
+  loop de 16 KB, backoff tras reinicios por error, saneo de RTC-RAM, binario sin rutas
+  personales. `SECURITY.md` con modelo de amenazas.
+
 - **Tema claro / oscuro** seleccionable (portal o comando `t`), con inversión en el buffer;
   la luna conserva colores físicos.
 - Portada rediseñada (tipográfica, logo DELO chico como firma).

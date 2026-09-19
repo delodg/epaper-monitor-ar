@@ -44,6 +44,32 @@ static bool s_coldBoot  = false;
 static bool s_forceFull = false;
 static int  s_lastMinute = -1;
 
+// Pila del loop más holgada (parsers JSON/TLS anidados).
+SET_LOOP_TASK_STACK_SIZE(16 * 1024);
+
+// Reinicios por error consecutivos (sobrevive a resets, no a un apagado): si un dato hostil
+// hiciera crashear un parser, no se reintenta en bucle sino con espera.
+RTC_NOINIT_ATTR uint32_t g_crashCount;
+
+// Datos que sobrevivieron al deep-sleep: acotar por si la RTC-RAM se corrompió.
+static void sanitizeRtcData() {
+  if (g_state.page >= PAGE_COUNT) g_state.page = 0;
+  if (g_news.n > NEWS_MAX_TITLES) g_news.n = 0;
+  if (g_dolar.n > 6) g_dolar.n = 0;
+  if (g_holidays.n > 4) g_holidays.n = 0;
+  if (g_marine.nExt > 8) g_marine.nExt = 0;
+  if (g_hist.count > INDOOR_SAMPLES) g_hist.count = 0;
+  if (g_hist.head >= INDOOR_SAMPLES) g_hist.head = 0;
+  g_state.ssid[sizeof(g_state.ssid) - 1] = 0;
+  g_state.ip[sizeof(g_state.ip) - 1] = 0;
+  g_news.source[sizeof(g_news.source) - 1] = 0;
+  for (int i = 0; i < NEWS_MAX_TITLES; i++) g_news.title[i][sizeof(g_news.title[0]) - 1] = 0;
+  for (int i = 0; i < 4; i++) { g_holidays.item[i].nombre[sizeof(g_holidays.item[0].nombre) - 1] = 0; g_holidays.item[i].tipo[sizeof(g_holidays.item[0].tipo) - 1] = 0; }
+  for (int i = 0; i < 6; i++) g_dolar.item[i].nombre[sizeof(g_dolar.item[0].nombre) - 1] = 0;
+  g_econ.riesgoFecha[sizeof(g_econ.riesgoFecha) - 1] = 0;
+  g_econ.inflMes[sizeof(g_econ.inflMes) - 1] = 0;
+}
+
 // Año de compilación (de __DATE__ = "Sep 18 2026"): la hora del RTC se considera real
 // sólo si cae entre ese año y 15 años después (los RTC vírgenes traen fechas como 2056).
 static constexpr int BUILD_YEAR = (__DATE__[7] - '0') * 1000 + (__DATE__[8] - '0') * 100 +
@@ -218,6 +244,13 @@ void setup() {
     g_hist.lastSlot = -1;
   }
   g_state.bootCount++;
+  if (!s_coldBoot) sanitizeRtcData();
+
+  // Contador de reinicios por error (PANIC / watchdogs)
+  esp_reset_reason_t rr = esp_reset_reason();
+  if (rr == ESP_RST_POWERON || rr == ESP_RST_BROWNOUT || g_crashCount > 1000) g_crashCount = 0;
+  if (rr == ESP_RST_PANIC || rr == ESP_RST_INT_WDT || rr == ESP_RST_TASK_WDT || rr == ESP_RST_WDT) g_crashCount++;
+  else if (rr != ESP_RST_DEEPSLEEP) g_crashCount = 0;
 
   setenv("TZ", TZ_ARGENTINA, 1);
   tzset();
@@ -235,10 +268,14 @@ void setup() {
   sampleIndoorIfDue();
 
   static const char* RST[] = {"desconocido", "power-on", "externo", "software", "PANIC", "int-WDT", "task-WDT", "otro-WDT", "deep-sleep", "brownout", "SDIO"};
-  int rr = (int)esp_reset_reason();
   Serial.printf("\n[main] ePaper Monitor AR v%s | boot #%lu | reset=%s wake=%d cold=%d | RTC %s | SHTC3 %s | bat %d mV | USB host %s | modo %s\n",
-                FW_VERSION, (unsigned long)g_state.bootCount, (rr >= 0 && rr <= 10) ? RST[rr] : "?", (int)wake, s_coldBoot,
+                FW_VERSION, (unsigned long)g_state.bootCount, ((int)rr >= 0 && (int)rr <= 10) ? RST[(int)rr] : "?", (int)wake, s_coldBoot,
                 rtcOk ? "ok" : "NO", shtOk ? "ok" : "NO", g_batteryMv, g_usbHost ? "sí" : "no", g_alwaysOn ? "siempre-on" : "deep-sleep");
+  if (g_crashCount >= CRASH_BACKOFF_COUNT) {
+    Serial.printf("[main] %lu reinicios por error seguidos: pospongo la sincronización\n", (unsigned long)g_crashCount);
+    g_state.lastAttempt = time(nullptr);    // syncDue() espera 5 min desde el último intento
+    g_crashCount = 0;
+  }
   if (g_state.timeValid)
     Serial.printf("[main] hora RTC: %02d/%02d/%04d %02d:%02d:%02d\n", g_now.tm_mday, g_now.tm_mon + 1,
                   g_now.tm_year + 1900, g_now.tm_hour, g_now.tm_min, g_now.tm_sec);
