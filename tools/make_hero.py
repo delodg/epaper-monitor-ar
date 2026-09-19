@@ -102,9 +102,9 @@ d.text((M, 302), "Hora · Clima · Mareas · Sol y Luna · Dólar · Economía �
        font=font(30, "regular"), fill=TEXT)
 d.text((M, 348), f"Waveshare ESP32-S3-ePaper-1.54  ·  firmware open source  ·  sin API keys  ·  tema {'oscuro' if theme == 'dark' else 'claro'}",
        font=font(24, "regular"), fill=MUTED)
-lg = logo(260, LOGO)
+lg = logo(230, LOGO)
 if lg:
-    scene.paste(lg, (W - M - lg.width, 150 + 112 - lg.height - 10), lg)   # alineado con la base del título
+    scene.paste(lg, (W - M - lg.width, 118 - 4), lg)   # arriba a la derecha, a la altura de "ARGENTINA"
 d.line([M, GRID_Y - 46, W - M, GRID_Y - 46], fill=RULE, width=2)
 
 # ---- retícula de dispositivos con captions ----

@@ -17,10 +17,11 @@ os.makedirs(out_dir, exist_ok=True)
 W, H, SCALE = 200, 200, 2
 NAMES = ["reloj", "clima", "mar", "sol", "dolar", "economia", "noticias", "feriados", "interior", "wifi", "sistema"]
 
-# OJO: abrir el puerto SIN activar DTR/RTS; en el USB-Serial/JTAG del ESP32-S3 eso resetea la placa.
+# OJO: en el USB-Serial/JTAG del ESP32-S3, RTS activo resetea la placa; DTR activo hace falta
+# para que el driver HWCDC transmita (sin DTR el volcado se queda trabado). => DTR=1, RTS=0.
 ser = serial.Serial()
 ser.port, ser.baudrate, ser.timeout = port, 115200, 1
-ser.dtr = False
+ser.dtr = True
 ser.rts = False
 ser.open()
 with ser as s:

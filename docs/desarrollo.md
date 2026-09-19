@@ -118,10 +118,10 @@ Con el USB nativo del ESP32-S3, en deep-sleep el puerto COM desaparece y sólo r
 - `sntp_get_sync_status()` devuelve `COMPLETED` **una sola vez** y se resetea: guardar el
   resultado en una variable.
 - Las fuentes Helvetica de U8g2 no tienen `…` ni `→`.
-- **Abrir el puerto serie con DTR/RTS activos resetea la placa** (lógica de auto-reset del
-  USB-Serial/JTAG). pyserial los activa por defecto: crear `Serial()`, poner `dtr = rts = False`
-  y recién entonces `open()` (así lo hace `tools/fbdump.py`). Con `pio device monitor` usar
-  `--dtr 0 --rts 0` o `monitor_dtr = 0` / `monitor_rts = 0` en `platformio.ini`.
+- **Abrir el puerto serie con RTS activo resetea la placa** (lógica de auto-reset del
+  USB-Serial/JTAG), pero **sin DTR el driver HWCDC no transmite** (el volcado se traba).
+  Con pyserial: crear `Serial()`, poner `dtr = True`, `rts = False` y recién entonces `open()`
+  (así lo hace `tools/fbdump.py`). Con `pio device monitor`: `monitor_dtr = 1`, `monitor_rts = 0`.
 
 ## Agregar una fuente de noticias
 

@@ -738,7 +738,7 @@ static void pageMarine() {
     snprintf(buf, sizeof(buf), "%s %s", e.high ? "Alta" : "Baja", hm);
     text(x + 11, yy, buf);
     font(F_R08);
-    snprintf(buf, sizeof(buf), "%.1f m", (e.cm - datum) / 100.0f);
+    snprintf(buf, sizeof(buf), "%.1f m", max(0, e.cm - datum) / 100.0f);
     textRight(x + 93, yy, buf);
     shown++;
   }
