@@ -61,6 +61,7 @@ sección muestra "sin datos del mar".
 | `a` | dibujar y volcar las 11 secciones sin refrescar el panel |
 | `h` | llenar el historial interior con datos de demostración (para probar la UI) |
 | `S` | mostrar la portada (logo) |
+| `Q` | mostrar la pantalla del portal Wi-Fi (para capturas) |
 | `B` | medir 10 ciclos de deep-sleep (modo batería simulado) |
 | `P` | informe de consumo: ms despierta por ciclo y por sincronización |
 | `T` | desglose por etapa de un ciclo de reloj (sensores, panel, refresco) |

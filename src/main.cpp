@@ -484,6 +484,7 @@ void loop() {
       case 'a': UI::dumpAllPages(g_state.page); break;
       case 'w': portalFlow(); changed = true; break;
       case 'S': UI::renderSplash("Conectando a Wi-Fi..."); s_forceFull = true; break;   // ver la portada
+      case 'Q': UI::renderPortal(); s_forceFull = true; break;                        // ver la pantalla del portal
       case 'P': powerReport(); break;                        // informe de consumo
       case 'T': {                                            // desglose de un ciclo de reloj
         uint32_t t0 = millis();
