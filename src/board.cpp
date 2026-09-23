@@ -116,8 +116,11 @@ static void holdRails() {
   gpio_deep_sleep_hold_en();
 }
 
+void (*onBeforeSleep)(uint64_t sleepUs) = nullptr;
+
 void deepSleep(uint64_t sleepUs) {
   ledOff();
+  if (onBeforeSleep) onBeforeSleep(sleepUs);
   Serial.flush();
   prepareButtonWake();
   esp_sleep_enable_timer_wakeup(sleepUs);

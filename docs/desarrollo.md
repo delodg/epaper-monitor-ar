@@ -61,7 +61,21 @@ sección muestra "sin datos del mar".
 | `a` | dibujar y volcar las 11 secciones sin refrescar el panel |
 | `h` | llenar el historial interior con datos de demostración (para probar la UI) |
 | `S` | mostrar la portada (logo) |
+| `B` | medir 10 ciclos de deep-sleep (modo batería simulado) |
+| `P` | informe de consumo: ms despierta por ciclo y por sincronización |
+| `T` | desglose por etapa de un ciclo de reloj (sensores, panel, refresco) |
 | `t` | alternar tema claro/oscuro (se guarda en NVS) |
+
+## Medir el consumo
+
+`python tools/measure_power.py COM9` fuerza 10 ciclos de deep-sleep y lee el informe. El
+firmware cronometra con `gettimeofday()`, que sobrevive al deep-sleep porque ESP-IDF le suma
+el tiempo dormido medido por el RTC interno. Los números medidos y las optimizaciones que
+salieron de ahí están en [`energia.md`](energia.md).
+
+Ojo al medir: en modo batería simulado el puerto COM desaparece en cada sueño y la salida de
+los primeros ~700 ms de cada arranque se pierde (el USB todavía no está enumerado), por eso
+las estadísticas se acumulan en RTC-RAM y se imprimen al final.
 
 ## Tema claro / oscuro
 

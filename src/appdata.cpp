@@ -1,4 +1,5 @@
 #include "appdata.h"
+#include "board.h"
 #include <esp_system.h>
 
 // Clave del portal Wi-Fi: prefijo + últimos 4 dígitos hex del MAC de fábrica (>= 8 caracteres).
@@ -54,6 +55,58 @@ void formatHHMM(time_t epoch, char* out, size_t n) {
   struct tm t;
   localtime_r(&epoch, &t);
   snprintf(out, n, "%02d:%02d", t.tm_hour, t.tm_min);
+}
+
+// ============================================================================
+//  Cadencias de energía
+//  Cada despertar cuesta ~0,8 s y cada sincronización varios segundos de radio:
+//  el perfil, la franja nocturna y la batería baja deciden cada cuánto ocurren.
+// ============================================================================
+bool isNight() {
+  if (!g_cfg.nightMode || !g_state.timeValid) return false;
+  int h = g_now.tm_hour;
+  return (NIGHT_START_H < NIGHT_END_H) ? (h >= NIGHT_START_H && h < NIGHT_END_H)
+                                       : (h >= NIGHT_START_H || h < NIGHT_END_H);
+}
+
+// Batería baja (y sin USB): pasar a la cadencia de ahorro aunque el perfil sea otro
+static bool lowBattery() {
+  return !Board::onUsbPower(g_batteryMv) && Board::batteryPercent(g_batteryMv) <= LOW_BATTERY_PCT;
+}
+
+uint16_t clockIntervalMin() {
+  if (isNight()) return NIGHT_CLOCK_MIN;
+  uint8_t p = lowBattery() ? PWR_SAVER : g_cfg.profile;
+  switch (p) {
+    case PWR_PERF:   return 1;
+    case PWR_SAVER:  return 5;
+    default:         return 2;      // equilibrado
+  }
+}
+
+uint16_t syncIntervalMin() {
+  if (isNight()) return NIGHT_SYNC_MIN;
+  uint16_t base = g_cfg.intervalMin;
+  if (lowBattery()) return base < 60 ? 60 : base;
+  if (g_cfg.profile == PWR_SAVER) return base < 60 ? 60 : base;
+  if (g_cfg.profile == PWR_BALANCED && base < 30) return 30;
+  return base;
+}
+
+// Autonomía estimada con los tiempos REALES medidos en la placa (g_pwr) y corrientes
+// TÍPICAS del ESP32-S3 + panel (no medidas con amperímetro): despierto sin radio ~42 mA,
+// con Wi-Fi ~110 mA, en deep-sleep ~0,15 mA. Sirve para comparar configuraciones.
+float estimatedBatteryDays() {
+  const float I_AWAKE = 42.0f, I_WIFI = 110.0f, I_SLEEP = 0.15f, CAPACITY_MAH = 1000.0f;
+  float awakeMs = g_pwr.cycles ? (float)(g_pwr.sumBootMs + g_pwr.sumAppMs) / g_pwr.cycles : 815.0f;
+  float syncMs  = g_pwr.syncs  ? (float)g_pwr.sumSyncMs / g_pwr.syncs : 3000.0f;
+  if (syncMs > 20000.0f) syncMs = 20000.0f;         // no extrapolar con la sync inicial completa
+  float wakesDay = 1440.0f / (float)clockIntervalMin();
+  float syncsDay = 1440.0f / (float)syncIntervalMin();
+  float mahDay = wakesDay * (awakeMs / 3600000.0f) * I_AWAKE
+               + syncsDay * (syncMs / 3600000.0f) * I_WIFI
+               + 24.0f * I_SLEEP;
+  return mahDay > 0.1f ? CAPACITY_MAH / mahDay : 0.0f;
 }
 
 // ---- Viento: dirección en texto (de dónde viene) ----

@@ -23,6 +23,7 @@ bool     pwrPressed();
 uint32_t measureHold(uint8_t pin, uint32_t maxMs);  // ms que el botón sigue apretado (con feedback LED)
 
 void deepSleep(uint64_t sleepUs);       // mantiene rails, despierta por timer o botones
+extern void (*onBeforeSleep)(uint64_t sleepUs);   // gancho para anotar estadísticas
 void powerOff();                        // apaga rail de batería; sólo despierta con PWR
 
 }  // namespace Board

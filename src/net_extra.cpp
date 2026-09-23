@@ -146,9 +146,14 @@ static bool tryMarine(float lat, float lon, MarineData& m) {
 bool fetchMarine() {
   if (isnan(g_cfg.lat) || isnan(g_cfg.lon)) return false;
   MarineData m;
-  // primero la celda que ya funcionó; si no, la ubicación y luego hacia el este. Si la primera
-  // celda con marea no trae olas se prueba una más (las olas suelen estar más mar adentro).
+  // Primero la celda que ya funcionó (sondear cuesta hasta 5 peticiones HTTPS ~12 s): se
+  // recuerda en RTC-RAM y también en NVS, así sobrevive a un corte de energía.
   if (g_marine.valid && tryMarine(g_marine.cellLat, g_marine.cellLon, m)) { g_marine = m; return true; }
+  if (!isnan(g_cfg.marineLat) && g_cfg.marineLat != 0 && tryMarine(g_cfg.marineLat, g_cfg.marineLon, m)) {
+    g_marine = m;
+    Serial.printf("[mar] celda recordada %.3f,%.3f\n", m.cellLat, m.cellLon);
+    return true;
+  }
   MarineData first;
   bool haveFirst = false;
   for (int i = 0; i < GEO_TRIES_EAST; i++) {
@@ -159,6 +164,9 @@ bool fetchMarine() {
   }
   if (haveFirst) {
     g_marine = first;
+    g_cfg.marineLat = g_marine.cellLat;      // recordar la celda para no volver a sondear
+    g_cfg.marineLon = g_marine.cellLon;
+    saveConfig();
     Serial.printf("[mar] celda %.3f,%.3f: %u extremos, ola %.1f m, agua %.1f°C\n",
                   g_marine.cellLat, g_marine.cellLon, g_marine.nExt, g_marine.waveNow, g_marine.sst);
     return true;
@@ -208,29 +216,41 @@ bool fetchEcon() {
   bool any = false;
   String body;
   JsonDocument doc;
+  time_t now = time(nullptr);
+  auto stale = [&](time_t updated, long maxAge) { return updated == 0 || now - updated >= maxAge - 30; };
 
-  if (httpGetString("https://api.argentinadatos.com/v1/finanzas/indices/riesgo-pais/ultimo", body) &&
-      !deserializeJson(doc, body)) {
-    e.riesgoPais = doc["valor"] | 0;
-    int y = 0, mo = 0, d = 0;
-    if (sscanf(doc["fecha"] | "", "%d-%d-%d", &y, &mo, &d) == 3)
-      snprintf(e.riesgoFecha, sizeof(e.riesgoFecha), "%02d/%02d", d, mo);
-    any = true;
+  // Riesgo país: se publica un valor por día
+  if (stale(e.riesgoUpdated, RIESGO_MAX_AGE_S)) {
+    if (httpGetString("https://api.argentinadatos.com/v1/finanzas/indices/riesgo-pais/ultimo", body) &&
+        !deserializeJson(doc, body)) {
+      e.riesgoPais = doc["valor"] | 0;
+      int y = 0, mo = 0, d = 0;
+      if (sscanf(doc["fecha"] | "", "%d-%d-%d", &y, &mo, &d) == 3)
+        snprintf(e.riesgoFecha, sizeof(e.riesgoFecha), "%02d/%02d", d, mo);
+      e.riesgoUpdated = now;
+      any = true;
+    }
+    doc.clear();
   }
-  doc.clear();
-  if (httpGetLastObject("https://api.argentinadatos.com/v1/finanzas/indices/inflacion", doc)) {
-    e.inflMensual = doc["valor"] | 0.0f;
-    int y = 0, mo = 0, d = 0;
-    if (sscanf(doc["fecha"] | "", "%d-%d-%d", &y, &mo, &d) == 3 && mo >= 1 && mo <= 12)
-      strlcpy(e.inflMes, MESES_ABR[mo - 1], sizeof(e.inflMes));
-    any = true;
+
+  // Inflación: dato mensual y son dos descargas de ~50 KB -> una vez por día alcanza
+  if (stale(e.inflUpdated, INFLATION_MAX_AGE_S)) {
+    bool ok = false;
+    if (httpGetLastObject("https://api.argentinadatos.com/v1/finanzas/indices/inflacion", doc)) {
+      e.inflMensual = doc["valor"] | 0.0f;
+      int y = 0, mo = 0, d = 0;
+      if (sscanf(doc["fecha"] | "", "%d-%d-%d", &y, &mo, &d) == 3 && mo >= 1 && mo <= 12)
+        strlcpy(e.inflMes, MESES_ABR[mo - 1], sizeof(e.inflMes));
+      ok = any = true;
+    }
+    doc.clear();
+    if (httpGetLastObject("https://api.argentinadatos.com/v1/finanzas/indices/inflacionInteranual", doc)) {
+      e.inflInteranual = doc["valor"] | 0.0f;
+      ok = any = true;
+    }
+    doc.clear();
+    if (ok) e.inflUpdated = now;
   }
-  doc.clear();
-  if (httpGetLastObject("https://api.argentinadatos.com/v1/finanzas/indices/inflacionInteranual", doc)) {
-    e.inflInteranual = doc["valor"] | 0.0f;
-    any = true;
-  }
-  doc.clear();
   if (httpGetString("https://dolarapi.com/v1/cotizaciones", body) && !deserializeJson(doc, body)) {
     for (JsonObject o : doc.as<JsonArray>()) {
       const char* mon = o["moneda"] | "";
@@ -247,7 +267,7 @@ bool fetchEcon() {
   }
   if (!any) return false;
   e.valid = true;
-  e.updated = time(nullptr);
+  e.updated = now;
   g_econ = e;
   Serial.printf("[econ] riesgo país %d, inflación %s %.1f%% (i.a. %.1f%%), euro %.0f, BTC %.0f\n",
                 e.riesgoPais, e.inflMes, e.inflMensual, e.inflInteranual, e.euroVenta, e.btcUsd);

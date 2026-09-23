@@ -64,10 +64,13 @@ Inspirado en [VolosR/waveshareEinkMonitor](https://github.com/VolosR/waveshareEi
   energía. Sin credenciales en el código.
 - **Seguro por defecto**: HTTPS con validación de certificados (bundle de CAs de Mozilla
   embebido), sin puertos abiertos ni OTA, descargas acotadas. Ver [`SECURITY.md`](SECURITY.md).
-- **Bajo consumo**: deep-sleep entre actualizaciones (despierta cada minuto para el reloj,
-  cada 15 min para los datos; cada dato tiene su propia cadencia: clima 30 min, mar 3 h,
-  economía 1 h, sol y feriados una vez por día). Con una PC conectada por USB queda
-  "siempre encendido" automáticamente (así el puerto COM no desaparece).
+- **Bajo consumo medido y optimizado**: deep-sleep entre actualizaciones (~821 ms despierta
+  por refresco de reloj), **perfiles de energía** (rendimiento / equilibrado / ahorro),
+  **ahorro nocturno** y paso automático a ahorro con la batería baja. Cada dato se baja con
+  la frecuencia con la que realmente cambia, y si no hay nada pendiente **la radio no se
+  enciende** (sincronización en régimen: 0,31 s). Autonomía estimada ~43 días con 1000 mAh en
+  el perfil equilibrado, contra ~18 días en v1.2.0 — ver [`docs/energia.md`](docs/energia.md).
+  Con una PC conectada por USB queda "siempre encendido" automáticamente.
 - **Tema claro u oscuro** (tinta negra sobre blanco o pantalla invertida), seleccionable en el
   portal o con el comando `t`; se recuerda entre reinicios.
 - Tipografías con acentos (U8g2), íconos de clima dibujados por código, refresco parcial
@@ -111,7 +114,7 @@ para grabar en la dirección `0x0`. Con [esptool](https://docs.espressif.com/pro
 instalado (`pip install esptool`):
 
 ```bash
-esptool --chip esp32s3 --port COM4 --baud 460800 write-flash 0x0 firmware/epaper-monitor-ar-v1.2.0-merged.bin
+esptool --chip esp32s3 --port COM4 --baud 460800 write-flash 0x0 firmware/epaper-monitor-ar-v1.3.0-merged.bin
 ```
 
 (Reemplazá `COM4` por el puerto de tu placa. En Linux/macOS suele ser `/dev/ttyACM0`.)
@@ -139,6 +142,8 @@ librerías (GxEPD2, U8g2_for_Adafruit_GFX, WiFiManager, ArduinoJson, QRCode) se 
    - **Ciudad**: `auto` (geolocalización por la conexión) o el nombre de una ciudad argentina.
    - **Intervalo** de actualización de datos: 5–120 min (por defecto 15).
    - **Noticias**: `clarin`, `ambito`, `perfil`, `bbc` o `lanacion`.
+   - **Energía**: 0 = rendimiento (reloj cada minuto), 1 = equilibrado, 2 = ahorro.
+   - **Ahorro nocturno**: de 00 a 07 h refresca y sincroniza mucho menos.
    - **Siempre encendido**: desactiva el deep-sleep aunque no haya PC conectada.
    - **Modo oscuro**: pantalla invertida (fondo negro, tinta blanca).
 4. La placa sincroniza la hora, se geolocaliza y descarga todos los datos.
@@ -149,7 +154,7 @@ Para volver al portal en cualquier momento: **BOOT** 2 s. El portal se cierra so
 
 | Situación | Comportamiento |
 |---|---|
-| **Batería** (o cargador sin PC) | Deep-sleep. Despierta cada minuto para actualizar el reloj (refresco parcial, ~1 s) y cada *intervalo* para sincronizar por Wi-Fi (~10–15 s). Botones despiertan al instante. |
+| **Batería** (o cargador sin PC) | Deep-sleep. Despierta para el reloj según el perfil (1 / 2 / 5 min, 10 min de noche) y sincroniza sólo cuando hay algo que bajar. Botones despiertan al instante. |
 | **PC por USB** | Detecta el host (paquetes SOF) y queda **siempre encendido**: puerto serie disponible, botones por polling y Wi-Fi apagado entre sincronizaciones para calentar menos el sensor. Si se desconecta la PC (10 s sin SOF), pasa a deep-sleep solo. |
 | **"Siempre encendido"** (portal) | Igual al modo USB, sin importar la alimentación. |
 
@@ -195,6 +200,7 @@ tools/pio_prefix_map.py     script previo de PlatformIO: rutas anonimizadas en e
 certs/                bundle de CAs raíz embebido en el firmware
 tools/fbdump.py       captura la pantalla por USB y la guarda como PNG
 tools/make_hero.py    compone las imágenes hero del README (claro/oscuro) con las capturas
+tools/measure_power.py  mide el tiempo despierto por ciclo (comandos B/P del firmware)
 tools/flash_catch.py  graba el firmware "cazando" la ventana en que la placa despierta
 firmware/             imagen precompilada lista para grabar
 docs/                 hardware, desarrollo e imágenes
@@ -217,6 +223,11 @@ las capturas de este README). Más detalles en [`docs/desarrollo.md`](docs/desar
 - Librerías: [GxEPD2](https://github.com/ZinggJM/GxEPD2), [U8g2_for_Adafruit_GFX](https://github.com/olikraus/U8g2_for_Adafruit_GFX),
   [WiFiManager](https://github.com/tzapu/WiFiManager), [ArduinoJson](https://arduinojson.org/),
   [QRCode](https://github.com/ricmoo/QRCode), Adafruit GFX.
+
+## Energía
+
+El consumo se midió en la placa y se optimizó a partir de esas mediciones: ver
+[`docs/energia.md`](docs/energia.md) (desglose por etapa, qué se cambió y cuánto ahorró).
 
 ## Seguridad
 

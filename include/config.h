@@ -62,10 +62,29 @@
 #define DEFAULT_NEWS         "clarin"
 
 // ---- Cadencia de descarga por dato (además del intervalo general del portal) ----
+// Medido en la placa: cada petición HTTPS cuesta ~2 s (el handshake TLS domina), así que
+// bajar cada dato con la frecuencia con la que realmente cambia es lo que más batería ahorra.
 #define WEATHER_MAX_AGE_S   (30 * 60)     // clima: cada 30 min
 #define MARINE_MAX_AGE_S    (3 * 3600)    // mar (mareas/olas): cada 3 h
-#define ECON_MAX_AGE_S      (60 * 60)     // economía: cada hora
+#define NEWS_MAX_AGE_S      (30 * 60)     // noticias: cada 30 min
+#define CRYPTO_MAX_AGE_S    (60 * 60)     // cotizaciones y cripto: cada hora
+#define RIESGO_MAX_AGE_S    (6 * 3600)    // riesgo país: publica un valor por día
+#define INFLATION_MAX_AGE_S (24 * 3600)   // inflación: es mensual (y son 2 descargas de ~50 KB)
+#define NTP_MAX_AGE_S       (24 * 3600)   // el RTC PCF85063 deriva ~1-2 s/día: alcanza 1 vez por día
+#define DOLAR_MAX_AGE_S     (20 * 60)     // dólar en horario de mercado
+#define DOLAR_CLOSED_AGE_S  (6 * 3600)    // dólar con el mercado cerrado (no se mueve)
+#define MARKET_OPEN_H       10            // horario de mercado (lun-vie) para el dólar
+#define MARKET_CLOSE_H      19
 #define GEO_TRIES_EAST      5             // celdas marinas a probar hacia el este (0, +0.25°, ... +1.0°)
+
+// ---- Perfiles de energía (minutos entre actualizaciones de reloj / sincronizaciones) ----
+enum PowerProfile : uint8_t { PWR_PERF = 0, PWR_BALANCED = 1, PWR_SAVER = 2 };
+#define DEFAULT_PROFILE     PWR_BALANCED
+#define NIGHT_START_H       0             // "noche": menos refrescos y menos sincronizaciones
+#define NIGHT_END_H         7
+#define NIGHT_CLOCK_MIN     10
+#define NIGHT_SYNC_MIN      120
+#define LOW_BATTERY_PCT     15            // por debajo: cadencia de ahorro automáticamente
 
 // ---- Tiempos ----
 #define LONG_PRESS_MS            2000   // BOOT largo = portal Wi-Fi, PWR largo = sincronizar

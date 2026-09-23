@@ -17,7 +17,16 @@ struct Config {
   char     news[12];        // fuente de noticias (clave)
   bool     alwaysOn;        // true = sin deep-sleep (ideal con USB)
   bool     darkMode;        // true = pantalla invertida (fondo negro, tinta blanca)
+  uint8_t  profile;         // PowerProfile: rendimiento / equilibrado / ahorro
+  bool     nightMode;       // de madrugada, refrescar y sincronizar menos
+  float    marineLat, marineLon;   // celda marina que funcionó (se recuerda para no sondear)
 };
+
+// Cadencia efectiva (depende del perfil, la noche y la batería)
+uint16_t clockIntervalMin();
+uint16_t syncIntervalMin();
+bool     isNight();
+float    estimatedBatteryDays();   // estimación con los tiempos medidos y corrientes típicas
 
 // ---- Clima (Open-Meteo) ----
 struct WeatherDay {
@@ -68,6 +77,8 @@ struct SunData {
 };
 
 // ---- Economía ----
+// Cada campo tiene su propia antigüedad: la inflación es mensual (y cuesta 2 descargas
+// grandes), el riesgo país diario, y las cotizaciones/cripto cambian todo el tiempo.
 struct EconData {
   bool  valid;
   int16_t riesgoPais;
@@ -76,7 +87,8 @@ struct EconData {
   char  inflMes[4];              // "ago"
   float euroCompra, euroVenta, realCompra, realVenta;
   float btcUsd, ethUsd;
-  time_t updated;
+  time_t updated;                // última actualización de cotizaciones/cripto
+  time_t riesgoUpdated, inflUpdated;
 };
 
 // ---- Historial interior (una muestra cada 15 min, 24 h) ----
@@ -131,6 +143,20 @@ struct IndoorData {
   float temp, hum;
 };
 
+// ---- Medición de consumo (RTC memory): cuánto tiempo pasa despierta la placa ----
+struct PowerStats {
+  uint32_t cycles;          // ciclos de despertar medidos
+  uint32_t sumBootMs;       // ROM + bootloader + init del core, hasta setup()
+  uint32_t sumAppMs;        // desde setup() hasta el deep-sleep
+  uint32_t maxAppMs;
+  uint32_t syncs, sumSyncMs;
+  uint32_t testCycles;      // > 0: modo batería simulado (ignora el USB y duerme fijo)
+  uint64_t sleepStartUs;    // gettimeofday antes de dormir (se mantiene en deep-sleep)
+  uint32_t sleepReqMs;      // duración pedida al deep-sleep
+  uint32_t lastBootMs, lastAppMs;
+  uint32_t sumPreMs;        // init del core + PSRAM antes de setup()
+};
+
 // ---- Estado de la aplicación (RTC memory) ----
 #define STATE_MAGIC 0x41525031  // "ARP1"
 struct AppState {
@@ -141,6 +167,9 @@ struct AppState {
   time_t   lastAttempt;       // último intento (para no reintentar cada minuto sin Wi-Fi)
   time_t   lastFullRefresh;
   time_t   geoEpoch;          // última geolocalización por IP (0 = nunca en este ciclo de energía)
+  time_t   ntpEpoch;          // última sincronización NTP (el RTC mantiene la hora entre medio)
+  time_t   dolarEpoch;        // última cotización del dólar
+  time_t   newsEpoch;         // últimas noticias
   bool     wifiOk;            // última conexión exitosa
   bool     timeValid;
   char     ssid[33];
@@ -168,6 +197,7 @@ extern MarineData  g_marine;
 extern SunData     g_sun;
 extern EconData    g_econ;
 extern IndoorHistory g_hist;
+extern PowerStats  g_pwr;
 extern IndoorData  g_indoor;
 extern int         g_batteryMv;
 extern struct tm   g_now;     // hora local actual (Argentina)

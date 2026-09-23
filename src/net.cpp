@@ -41,7 +41,12 @@ void loadConfig() {
   g_cfg.intervalMin = p.getUShort("interval", DEFAULT_INTERVAL_MIN);
   g_cfg.alwaysOn    = p.getBool("alwayson", false);
   g_cfg.darkMode    = p.getBool("dark", false);
+  g_cfg.profile     = p.getUChar("profile", DEFAULT_PROFILE);
+  g_cfg.nightMode   = p.getBool("night", true);
+  g_cfg.marineLat   = p.getFloat("mlat", 0.0f);
+  g_cfg.marineLon   = p.getFloat("mlon", 0.0f);
   p.end();
+  if (g_cfg.profile > PWR_SAVER) g_cfg.profile = DEFAULT_PROFILE;
   strlcpy(g_cfg.city, city.c_str(), sizeof(g_cfg.city));
   strlcpy(g_cfg.cityName, cname.c_str(), sizeof(g_cfg.cityName));
   strlcpy(g_cfg.news, news.c_str(), sizeof(g_cfg.news));
@@ -61,6 +66,10 @@ void saveConfig() {
   p.putUShort("interval", g_cfg.intervalMin);
   p.putBool("alwayson", g_cfg.alwaysOn);
   p.putBool("dark", g_cfg.darkMode);
+  p.putUChar("profile", g_cfg.profile);
+  p.putBool("night", g_cfg.nightMode);
+  p.putFloat("mlat", g_cfg.marineLat);
+  p.putFloat("mlon", g_cfg.marineLon);
   p.putUShort("cfgver", CFG_VERSION);
   p.end();
 }
@@ -90,6 +99,7 @@ bool connect(uint32_t timeoutMs) {
   if (isConnected()) return true;
   WiFi.persistent(true);
   WiFi.mode(WIFI_STA);
+  WiFi.setTxPower(WIFI_POWER_13dBm);   // el router siempre está cerca: menos corriente al transmitir
   WiFi.setAutoReconnect(false);
   WiFi.begin();                       // usa la red guardada en NVS
   uint32_t t0 = millis();
@@ -139,11 +149,22 @@ bool runPortal() {
                                g_cfg.alwaysOn ? " type='checkbox' checked" : " type='checkbox'", WFM_LABEL_AFTER);
   WiFiManagerParameter pDark("dark", "Modo oscuro (pantalla invertida: fondo negro)", "1", 2,
                              g_cfg.darkMode ? " type='checkbox' checked" : " type='checkbox'", WFM_LABEL_AFTER);
+  char profStr[2] = {(char)('0' + (g_cfg.profile <= PWR_SAVER ? g_cfg.profile : DEFAULT_PROFILE)), 0};
+  WiFiManagerParameter pProfList(
+      "<datalist id='profList'><option value='0' label='rendimiento'><option value='1' label='equilibrado'>"
+      "<option value='2' label='ahorro'></datalist>");
+  WiFiManagerParameter pProfile("profile", "Energ&iacute;a: 0 = rendimiento (reloj 1 min) / 1 = equilibrado (2 min) / 2 = ahorro (5 min)",
+                                profStr, 2, " type='number' min='0' max='2' list='profList'");
+  WiFiManagerParameter pNight("night", "Ahorro nocturno (00-07 h: refresca y sincroniza mucho menos)", "1", 2,
+                              g_cfg.nightMode ? " type='checkbox' checked" : " type='checkbox'", WFM_LABEL_AFTER);
   wm.addParameter(&pHead);
   wm.addParameter(&pCity);
   wm.addParameter(&pInterval);
   wm.addParameter(&pNewsList);
   wm.addParameter(&pNews);
+  wm.addParameter(&pProfList);
+  wm.addParameter(&pProfile);
+  wm.addParameter(&pNight);
   wm.addParameter(&pAlways);
   wm.addParameter(&pDark);
 
@@ -170,6 +191,9 @@ bool runPortal() {
 
   g_cfg.alwaysOn = (strlen(pAlways.getValue()) > 0);
   g_cfg.darkMode = (strlen(pDark.getValue()) > 0);
+  g_cfg.nightMode = (strlen(pNight.getValue()) > 0);
+  int prof = atoi(pProfile.getValue());
+  g_cfg.profile = (prof >= 0 && prof <= PWR_SAVER) ? (uint8_t)prof : DEFAULT_PROFILE;
   saveConfig();
 
   if (connected) updateLinkInfo();

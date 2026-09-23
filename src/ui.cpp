@@ -633,8 +633,18 @@ static void pageSystem() {
   snprintf(buf, sizeof(buf), "Firmware: ePaper Monitor AR v%s", FW_VERSION); text(4, y, buf); y += LINE_H8;
   text(4, y, fit("Placa: Waveshare ePaper-1.54 (S3) V2", W - 8).c_str()); y += LINE_H8;
   snprintf(buf, sizeof(buf), "Modo: %s · tema %s", g_alwaysOn ? (g_usbHost && !g_cfg.alwaysOn ? "siempre on (USB)" : "siempre on") : "bajo consumo", g_cfg.darkMode ? "oscuro" : "claro"); text(4, y, fit(buf, W - 8).c_str()); y += LINE_H8;
-  snprintf(buf, sizeof(buf), "Arranques: %lu · Intervalo: %u min", (unsigned long)g_state.bootCount, g_cfg.intervalMin); text(4, y, buf); y += LINE_H8;
-  snprintf(buf, sizeof(buf), "RAM libre: %u KB · PSRAM: %u KB", (unsigned)(ESP.getFreeHeap() / 1024), (unsigned)(ESP.getFreePsram() / 1024)); text(4, y, buf); y += LINE_H8;
+  static const char* PROF[] = {"rendimiento", "equilibrado", "ahorro"};
+  snprintf(buf, sizeof(buf), "Energía: %s%s · %u/%u min",
+           PROF[g_cfg.profile <= PWR_SAVER ? g_cfg.profile : 1], isNight() ? " (noche)" : "",
+           clockIntervalMin(), syncIntervalMin());
+  text(4, y, fit(buf, W - 8).c_str()); y += LINE_H8;
+  {
+    float days = estimatedBatteryDays();
+    if (days > 0) snprintf(buf, sizeof(buf), "Autonomía estimada: %.0f días (1000 mAh)", days);
+    else snprintf(buf, sizeof(buf), "Autonomía: midiendo...");
+    text(4, y, fit(buf, W - 8).c_str()); y += LINE_H8;
+  }
+  snprintf(buf, sizeof(buf), "Arranques: %lu · RAM %u KB", (unsigned long)g_state.bootCount, (unsigned)(ESP.getFreeHeap() / 1024)); text(4, y, buf); y += LINE_H8;
   uint8_t mac[6]; WiFi.macAddress(mac);
   snprintf(buf, sizeof(buf), "MAC: %02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]); text(4, y, buf); y += LINE_H8;
   if (g_state.timeValid) {

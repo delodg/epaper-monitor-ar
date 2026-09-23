@@ -124,7 +124,7 @@ for i, (name, caption) in enumerate(SCREENS):
 # ---- pie ----
 d.line([M, H - 58, W - M, H - 58], fill=RULE, width=2)
 d.text((M, H - 44), "github.com/delodg/epaper-monitor-ar", font=font(22, "regular"), fill=MUTED)
-d.text((W - M - d.textlength("MIT · v1.2.0", font=font(22, "regular")), H - 44), "MIT · v1.2.0", font=font(22, "regular"), fill=MUTED)
+d.text((W - M - d.textlength("MIT · v1.3.0", font=font(22, "regular")), H - 44), "MIT · v1.2.0", font=font(22, "regular"), fill=MUTED)
 
 scene.save(OUT, optimize=True)
 print("guardado", os.path.normpath(OUT), scene.size)

@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.3.0 — 2026-09-23
+
+Optimización de consumo a partir de mediciones en la placa (ver `docs/energia.md`).
+
+- **Perfiles de energía** (rendimiento / equilibrado / ahorro) y **ahorro nocturno**
+  configurables en el portal; paso automático a ahorro con la batería ≤ 15 %.
+- `planSync()`: si no hay nada que bajar, **no se enciende la radio** (0,31 s contra 5,6-7,1 s).
+- Economía: cada campo con su propia antigüedad (la inflación es mensual y costaba dos
+  descargas de ~50 KB por hora): 14,3 s → ~4 s.
+- Mar: la celda marina que funciona se recuerda en NVS: 12,4 s → 2,7 s.
+- NTP una vez por día (el RTC deriva 1-2 s/día); dólar sólo en horario de mercado.
+- Potencia de transmisión Wi-Fi a 13 dBm.
+- Pantalla Sistema: perfil, cadencia y autonomía estimada con los tiempos reales medidos.
+- Herramientas de medición: comandos `B`/`P`/`T` y `tools/measure_power.py`.
+
 ## 1.2.0 — 2026-09-19
 
 - **Seguridad**: HTTPS con validación de certificados (bundle de CAs de Mozilla embebido),

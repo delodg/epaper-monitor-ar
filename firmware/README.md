@@ -4,7 +4,7 @@
 boot_app0 + aplicación) para grabar en `0x0`:
 
 ```bash
-esptool --chip esp32s3 --port COM4 --baud 460800 write-flash 0x0 epaper-monitor-ar-v1.2.0-merged.bin
+esptool --chip esp32s3 --port COM4 --baud 460800 write-flash 0x0 epaper-monitor-ar-v1.3.0-merged.bin
 ```
 
 Generada con `esptool merge-bin` a partir de la salida de PlatformIO
