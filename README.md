@@ -14,7 +14,8 @@ ciudad (ubicación automática)**, **mareas, olas y viento**, **sol y luna**, **
 **temperatura/humedad interior con historial**. Navegación con los dos botones de la placa
 al estilo M5StickC, portal Wi-Fi con QR y modo de bajo consumo para batería.
 
-**Instalalo desde el navegador → [esp32.damianlineiro.com](https://esp32.damianlineiro.com/)**\nConectá la placa por USB, tocá *Flashear ahora* y seguí los pasos para configurar el Wi-Fi
+**Instalalo desde el navegador → [esp32.damianlineiro.com](https://esp32.damianlineiro.com/)**\
+Conectá la placa por USB, tocá *Flashear ahora* y seguí los pasos para configurar el Wi-Fi
 desde el celular. No hace falta instalar nada (Chrome, Edge u Opera de escritorio).
 
 | Portada | Reloj | Clima | Mar |
