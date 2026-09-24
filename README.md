@@ -16,7 +16,7 @@ al estilo M5StickC, portal Wi-Fi con QR y modo de bajo consumo para batería.
 
 **Instalalo desde el navegador → [esp32.damianlineiro.com](https://esp32.damianlineiro.com/)**\
 Conectá la placa por USB, tocá *Flashear ahora* y seguí los pasos para configurar el Wi-Fi
-desde el celular. No hace falta instalar nada (Chrome, Edge u Opera de escritorio).
+desde el celular. No hace falta instalar nada (Chrome, Edge o Brave de escritorio).
 
 | Portada | Reloj | Clima | Mar |
 |---|---|---|---|
@@ -118,7 +118,7 @@ un cable **USB-C de datos** y tocá **Flashear ahora**. La página graba el mism
 releases (verificado por sha256, que está impreso en la página) y trae el paso a paso para
 configurar el Wi-Fi desde el celular.
 
-Requiere **Chrome, Edge u Opera de escritorio**: usa Web Serial, que no existe en Firefox,
+Requiere **Chrome, Edge o Brave de escritorio**: usa Web Serial, que no existe en Firefox,
 Safari ni en los navegadores de celular.
 
 ### Opción B — firmware precompilado con esptool
