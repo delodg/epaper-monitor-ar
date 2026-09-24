@@ -14,6 +14,9 @@ ciudad (ubicación automática)**, **mareas, olas y viento**, **sol y luna**, **
 **temperatura/humedad interior con historial**. Navegación con los dos botones de la placa
 al estilo M5StickC, portal Wi-Fi con QR y modo de bajo consumo para batería.
 
+**Instalalo desde el navegador → [esp32.damianlineiro.com](https://esp32.damianlineiro.com/)**\nConectá la placa por USB, tocá *Flashear ahora* y seguí los pasos para configurar el Wi-Fi
+desde el celular. No hace falta instalar nada (Chrome, Edge u Opera de escritorio).
+
 | Portada | Reloj | Clima | Mar |
 |---|---|---|---|
 | ![](docs/img/00-portada.png) | ![](docs/img/01-reloj.png) | ![](docs/img/02-clima.png) | ![](docs/img/03-mar.png) |
@@ -107,7 +110,17 @@ Feriados · Interior · Wi-Fi · Sistema. Los puntos del pie de página indican 
 
 ## Instalación
 
-### Opción A — firmware precompilado
+### Opción A — desde el navegador (lo más fácil)
+
+Entrá a **[esp32.damianlineiro.com](https://esp32.damianlineiro.com/)**, conectá la placa con
+un cable **USB-C de datos** y tocá **Flashear ahora**. La página graba el mismo binario de los
+releases (verificado por sha256, que está impreso en la página) y trae el paso a paso para
+configurar el Wi-Fi desde el celular.
+
+Requiere **Chrome, Edge u Opera de escritorio**: usa Web Serial, que no existe en Firefox,
+Safari ni en los navegadores de celular.
+
+### Opción B — firmware precompilado con esptool
 
 En [`firmware/`](firmware/) hay una imagen única (bootloader + particiones + aplicación) lista
 para grabar en la dirección `0x0`. Con [esptool](https://docs.espressif.com/projects/esptool/)
@@ -119,7 +132,7 @@ esptool --chip esp32s3 --port COM4 --baud 460800 write-flash 0x0 firmware/epaper
 
 (Reemplazá `COM4` por el puerto de tu placa. En Linux/macOS suele ser `/dev/ttyACM0`.)
 
-### Opción B — compilar con PlatformIO
+### Opción C — compilar con PlatformIO
 
 ```bash
 pio run -t upload          # compila y graba (puerto configurado en platformio.ini)
