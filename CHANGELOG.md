@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.4.0 — sin publicar
+## 1.4.0 — 2026-10-04
 
 - **Soporte para la Waveshare ESP32-S3-ePaper-1.54G** (panel de 4 colores, JD79660): nuevo
   entorno `waveshare_epaper154g` en `platformio.ini`. Misma interfaz en blanco y negro; el reloj
