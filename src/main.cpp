@@ -44,6 +44,100 @@ SHTC3                    g_shtc3(Wire);
 static bool s_coldBoot  = false;
 static bool s_forceFull = false;
 static int  s_lastMinute = -1;
+static uint32_t s_lastRenderMs = 0;
+
+// Identifica el perfil instalado, no una pantalla detectada eléctricamente.
+static void reportHardware() {
+#if defined(CONFIG_IDF_TARGET_ESP32)
+  const char* chip = "ESP32";
+#else
+  const char* chip = "ESP32-S3";
+#endif
+  Serial.printf("[hardware]{\"schemaVersion\":1,\"profileId\":\"%s\",\"chipFamily\":\"%s\",\"flashBytes\":%u,\"version\":\"%s\"}\n",
+                HW_PROFILE_ID, chip, (unsigned)ESP.getFlashChipSize(), FW_VERSION);
+}
+
+struct Button {
+  uint8_t pin;
+  bool raw = false, down = false, ignoreRelease = false, ledLong = false;
+  uint32_t edgeAt = 0, pressedAt = 0;
+  explicit Button(uint8_t p) : pin(p) {}
+  void prime() {
+    raw = down = digitalRead(pin) == LOW;
+    ignoreRelease = down; // la pulsación de despertar ya se procesó
+    edgeAt = pressedAt = millis();
+  }
+  bool active() const { return raw || down; }
+  int poll() {
+    uint32_t now = millis();
+    bool sample = digitalRead(pin) == LOW;
+    if (sample != raw) { raw = sample; edgeAt = now; }
+    if (raw != down && now - edgeAt >= 30) {
+      down = raw;
+      if (down) { pressedAt = edgeAt; ledLong = false; }
+      else {
+        Board::ledOff();
+        if (ignoreRelease) { ignoreRelease = false; return 0; }
+        uint32_t held = edgeAt - pressedAt;
+        return held >= POWEROFF_PRESS_MS ? 3 : held >= LONG_PRESS_MS ? 2 : 1;
+      }
+    }
+    if (down && !ignoreRelease && !ledLong && now - pressedAt >= LONG_PRESS_MS) {
+      Board::ledOn(); ledLong = true;
+    }
+    return 0;
+  }
+};
+
+static Button s_boot(PIN_BTN_BOOT), s_pwr(PIN_BTN_PWR);
+static int s_pageDelta = 0;
+static uint32_t s_navigationAt = 0;
+static bool s_portalPending = false, s_syncPending = false, s_offPending = false;
+static char s_serialQueue[32];
+static uint8_t s_serialHead = 0, s_serialCount = 0;
+
+static void queueNavigation(int delta) {
+  s_pageDelta = (s_pageDelta + delta) % PAGE_COUNT;
+  s_navigationAt = millis();
+}
+
+static void pollInput() {
+  int boot = s_boot.poll(), pwr = s_pwr.poll();
+  if (boot == 1) queueNavigation(+1);
+  else if (boot >= 2) s_portalPending = true;
+  if (pwr == 1) queueNavigation(-1);
+  else if (pwr == 2) s_syncPending = true;
+  else if (pwr == 3) s_offPending = true;
+}
+
+static bool inputPending() {
+  return s_pageDelta || s_portalPending || s_syncPending || s_offPending || s_boot.active() || s_pwr.active() || s_serialCount;
+}
+
+// Callback del driver: sólo recopila acciones. Nunca renderiza ni conecta Wi-Fi
+// dentro de un refresco. La consulta de identidad responde aun con BUSY activo.
+static void serviceDisplayBusy(const void*) {
+  pollInput();
+  while (Serial.available() && s_serialCount < sizeof(s_serialQueue)) {
+    char c = (char)Serial.read();
+    if (c == 'I') reportHardware();
+    else if (c == 'n') queueNavigation(+1);
+    else if (c == 'p') queueNavigation(-1);
+    else if (c != '\n' && c != '\r') {
+      s_serialQueue[(s_serialHead + s_serialCount) % sizeof(s_serialQueue)] = c;
+      s_serialCount++;
+    }
+  }
+  delay(1); // cede CPU y mantiene el watchdog atendido
+}
+
+static char nextSerialCommand() {
+  if (!s_serialCount) return (char)Serial.read();
+  char c = s_serialQueue[s_serialHead];
+  s_serialHead = (s_serialHead + 1) % sizeof(s_serialQueue);
+  s_serialCount--;
+  return c;
+}
 
 // Pila del loop más holgada (parsers JSON/TLS anidados).
 SET_LOOP_TASK_STACK_SIZE(16 * 1024);
@@ -256,6 +350,7 @@ static void renderCurrent() {
   bool full = s_forceFull || s_coldBoot || g_state.lastFullRefresh == 0 ||
               (now - g_state.lastFullRefresh >= (time_t)FULL_REFRESH_EVERY_MIN * 60);
   UI::render(g_state.page, full);
+  s_lastRenderMs = millis();
   if (full) g_state.lastFullRefresh = now;
   s_forceFull = false;
   s_coldBoot = false;
@@ -268,6 +363,26 @@ static void doPowerOff() {
   UI::renderMessage("Apagado", "Mantené PWR para", "volver a encender", true);
   UI::hibernate();
   Board::powerOff();
+}
+
+static bool applyPendingInput() {
+  if (s_offPending) { s_offPending = false; doPowerOff(); }
+  if (s_portalPending || s_syncPending) {
+    bool portal = s_portalPending;
+    s_portalPending = s_syncPending = false;
+    s_pageDelta = 0;
+    if (portal) portalFlow(); else doSync();
+    return true;
+  }
+  // Agrupar pulsaciones rápidas evita gastar un ciclo de 15–20 s por cada paso.
+  if (s_pageDelta && !s_boot.active() && !s_pwr.active() &&
+      (EPD_MIN_CLOCK_MIN <= 1 || millis() - s_navigationAt >= 250)) {
+    int delta = s_pageDelta;
+    s_pageDelta = 0;
+    gotoPage(delta);
+    return true;
+  }
+  return false;
 }
 
 // Duerme hasta el próximo múltiplo del intervalo de reloj (:00, :02, :05... según el perfil),
@@ -326,6 +441,7 @@ void setup() {
   Board::earlyInit();
   uint64_t tBoot = nowUs();
   Serial.begin(115200);
+  reportHardware();
   Board::onBeforeSleep = statsBeforeSleep;
 
   Board::WakeReason wake = Board::wakeReason();
@@ -366,7 +482,7 @@ void setup() {
   // Con una PC conectada por USB no conviene el deep-sleep (el puerto COM desaparecería
   // cada minuto): en ese caso queda "siempre encendido" automáticamente.
   g_usbHost = Board::usbHostConnected() && Board::usbHostConnected();   // dos lecturas seguidas para evitar falsos positivos
-  g_alwaysOn = g_cfg.alwaysOn || g_usbHost;
+  g_alwaysOn = BOARD_ALWAYS_ON || g_cfg.alwaysOn || g_usbHost;
   if (g_pwr.testCycles) { g_alwaysOn = false; g_pwr.testCycles--; }   // medición: forzar deep-sleep
 
   Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL, 400000);
@@ -377,6 +493,7 @@ void setup() {
 
   static const char* RST[] = {"desconocido", "power-on", "externo", "software", "PANIC", "int-WDT", "task-WDT", "otro-WDT", "deep-sleep", "brownout", "SDIO"};
   Serial.printf("[main] init del core %lu ms | PSRAM %u KB\n", (unsigned long)tPre, (unsigned)(ESP.getPsramSize() / 1024));
+  Serial.printf("[main] placa: %s | panel: %s\n", BOARD_NAME, EPD_MIN_CLOCK_MIN > 1 ? "4 colores (JD79660)" : "B/N (SSD1681)");
   Serial.printf("\n[main] ePaper Monitor AR v%s | boot #%lu | reset=%s wake=%d cold=%d | RTC %s | SHTC3 %s | bat %d mV | USB host %s | modo %s\n",
                 FW_VERSION, (unsigned long)g_state.bootCount, ((int)rr >= 0 && (int)rr <= 10) ? RST[(int)rr] : "?", (int)wake, s_coldBoot,
                 rtcOk ? "ok" : "NO", shtOk ? "ok" : "NO", g_batteryMv, g_usbHost ? "sí" : "no", g_alwaysOn ? "siempre-on" : "deep-sleep");
@@ -407,10 +524,15 @@ void setup() {
     else gotoPage(-1);
   }
 
+  s_boot.prime();
+  s_pwr.prime();
+  Net::onIdle = []() { serviceDisplayBusy(nullptr); };
+  UI::setBusyCallback(serviceDisplayBusy);
   UI::begin(s_coldBoot);
   if (powerOff) doPowerOff();
 
-  if (s_coldBoot) UI::renderSplash(Net::hasCredentials() ? "Conectando a Wi-Fi..." : "Wi-Fi sin configurar");
+  // En 4C la portada costaba un refresco completo antes de la pantalla útil.
+  if (s_coldBoot && EPD_MIN_CLOCK_MIN <= 1) UI::renderSplash(Net::hasCredentials() ? "Conectando a Wi-Fi..." : "Wi-Fi sin configurar");
 
   if (openPortal || (s_coldBoot && !Net::hasCredentials())) {
     portalFlow();
@@ -428,56 +550,27 @@ void setup() {
     g_alwaysOn = true;
     Serial.println("[main] host USB detectado al final del ciclo -> siempre encendido");
   }
-  if (!g_alwaysOn) Board::deepSleep(sleepMicros());
+  if (!g_alwaysOn && !inputPending()) Board::deepSleep(sleepMicros());
   // Nota: no usar setCpuFrequencyMhz(): en el S3 re-enumera el USB y rompe la detección de host.
-  Serial.println("[main] modo siempre encendido");
+  Serial.println(g_alwaysOn ? "[main] modo siempre encendido" : "[main] procesando botones antes de dormir");
   if (g_pwr.cycles) powerReport();
 }
 
 // ---------------------------------------------------------------------------
 //  Modo "siempre encendido" (sin deep-sleep): botones por polling
 // ---------------------------------------------------------------------------
-struct Button {
-  uint8_t  pin;
-  bool     wasDown = false;
-  uint32_t t0 = 0;
-  bool     ledLong = false, ledVery = false;
-  explicit Button(uint8_t p) : pin(p) {}
-  // Devuelve al soltar: 1 = corta, 2 = larga (>= LONG_PRESS_MS), 3 = muy larga (>= POWEROFF_PRESS_MS)
-  int poll() {
-    bool down = digitalRead(pin) == LOW;
-    uint32_t now = millis();
-    int ev = 0;
-    if (down && !wasDown) { t0 = now; ledLong = ledVery = false; }
-    if (down && wasDown) {
-      uint32_t held = now - t0;
-      if (!ledLong && held >= LONG_PRESS_MS) { Board::ledOn(); ledLong = true; }
-      if (!ledVery && held >= POWEROFF_PRESS_MS) { Board::ledBlink(3, 40, 40); ledVery = true; }
-    }
-    if (!down && wasDown) {
-      uint32_t held = now - t0;
-      Board::ledOff();
-      if (held >= POWEROFF_PRESS_MS) ev = 3;
-      else if (held >= LONG_PRESS_MS) ev = 2;
-      else if (held >= 30) ev = 1;
-    }
-    wasDown = down;
-    return ev;
-  }
-};
-
 void loop() {
-  static Button bBoot(PIN_BTN_BOOT), bPwr(PIN_BTN_PWR);
   static uint32_t lastTick = 0;
-  bool changed = false;
+  static bool changed = false; // conservar redibujos mientras se agrupan pulsaciones
 
   // Comandos por USB (útiles para desarrollo): n/p sección, s sync, f refresco completo,
   // d volcar pantalla actual, a volcar todas las secciones, w portal Wi-Fi
-  while (Serial.available()) {
-    char c = (char)Serial.read();
+  while (s_serialCount || Serial.available()) {
+    char c = nextSerialCommand();
     switch (c) {
-      case 'n': gotoPage(+1); changed = true; break;
-      case 'p': gotoPage(-1); changed = true; break;
+      case 'I': reportHardware(); break;
+      case 'n': queueNavigation(+1); break;
+      case 'p': queueNavigation(-1); break;
       case 's': doSync(); changed = true; break;
       case 'f': s_forceFull = true; changed = true; break;
       case 'd': UI::dumpBuffer(g_state.page); break;
@@ -530,47 +623,46 @@ void loop() {
     }
   }
 
-  int eb = bBoot.poll();
-  if (eb == 1) { gotoPage(+1); changed = true; }
-  else if (eb >= 2) { portalFlow(); changed = true; }
-
-  int ep = bPwr.poll();
-  if (ep == 1) { gotoPage(-1); changed = true; }
-  else if (ep == 2) { doSync(); changed = true; }
-  else if (ep == 3) { doPowerOff(); }
+  pollInput();
+  if (applyPendingInput()) changed = true;
 
   if (millis() - lastTick >= 1000) {
     lastTick = millis();
     refreshNow();
     if (g_now.tm_min != s_lastMinute) {
+      s_lastMinute = g_now.tm_min;
       g_indoor.valid = g_shtc3.read(g_indoor.temp, g_indoor.hum);
       g_batteryMv = Board::batteryMilliVolts();
       sampleIndoorIfDue();
-      changed = true;
+      if (EPD_MIN_CLOCK_MIN <= 1) changed = true;
       Serial.printf("[main] %02d:%02d heap %u KB (mín %u KB) pila libre %u B\n", g_now.tm_hour, g_now.tm_min,
                     (unsigned)(ESP.getFreeHeap() / 1024), (unsigned)(ESP.getMinFreeHeap() / 1024),
                     (unsigned)uxTaskGetStackHighWaterMark(NULL));
     }
-    if (syncDue()) { doSync(); changed = true; }
+    // El refresco lento puede cruzar de minuto. Medir desde el final del último
+    // render evita otro refresco inmediato, incluso después de navegar o sincronizar.
+    if (EPD_MIN_CLOCK_MIN > 1 && millis() - s_lastRenderMs >= (uint32_t)clockIntervalMin() * 60000UL) changed = true;
+    // La navegación pendiente tiene prioridad sobre una sincronización automática.
+    if (syncDue() && !changed && !inputPending()) { doSync(); changed = true; }
     // Si estábamos "siempre encendidos" sólo por el USB y lo desconectaron (10 s seguidos
     // sin paquetes SOF): pasar a bajo consumo
     static uint8_t noHostSecs = 0;
-    if (!g_cfg.alwaysOn && g_usbHost) {
+    if (!BOARD_ALWAYS_ON && !g_cfg.alwaysOn && g_usbHost) {
       noHostSecs = Board::usbHostConnected() ? 0 : noHostSecs + 1;
       if (noHostSecs >= 10) {
         Serial.println("[main] USB desconectado -> deep-sleep");
         g_usbHost = false;
         g_alwaysOn = false;
         Net::disconnect();
-        UI::hibernate();
-        Board::deepSleep(sleepMicros());
       }
     }
   }
 
-  if (changed) {
+  if (changed && !inputPending()) {
+    changed = false; // un evento recogido durante el render queda para el próximo loop
     renderCurrent();
     UI::hibernate();
   }
+  if (!g_alwaysOn && !inputPending() && !changed) Board::deepSleep(sleepMicros());
   delay(20);
 }

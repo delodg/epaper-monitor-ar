@@ -5,6 +5,7 @@
 namespace UI {
 
 void begin(bool coldBoot);                      // SPI + init del panel (refresco inicial sólo en arranque en frío)
+void setBusyCallback(void (*callback)(const void*)); // servicio liviano mientras el panel está ocupado
 void render(uint8_t page, bool fullRefresh);    // dibuja la sección y refresca (parcial o completo)
 void renderSplash(const char* status);          // pantalla de arranque
 void renderPortal();                            // instrucciones + QR del portal Wi-Fi

@@ -11,6 +11,8 @@ tools/out/
 # Python
 __pycache__/
 *.pyc
+/dist/
+/build*.log
 
 # SO
 .DS_Store

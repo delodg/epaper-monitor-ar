@@ -17,6 +17,8 @@ extern PCF85063 g_rtc;
 
 namespace Net {
 
+void (*onIdle)() = nullptr;
+
 // ============================================================================
 //  Configuración persistente
 // ============================================================================
@@ -104,6 +106,7 @@ bool connect(uint32_t timeoutMs) {
   WiFi.begin();                       // usa la red guardada en NVS
   uint32_t t0 = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - t0 < timeoutMs) {
+    if (onIdle) onIdle();
     delay(100);
     if ((millis() / 250) % 2) Board::ledOn(); else Board::ledOff();
   }
@@ -153,7 +156,9 @@ bool runPortal() {
   WiFiManagerParameter pProfList(
       "<datalist id='profList'><option value='0' label='rendimiento'><option value='1' label='equilibrado'>"
       "<option value='2' label='ahorro'></datalist>");
-  WiFiManagerParameter pProfile("profile", "Energ&iacute;a: 0 = rendimiento (reloj 1 min) / 1 = equilibrado (2 min) / 2 = ahorro (5 min)",
+  WiFiManagerParameter pProfile("profile", EPD_MIN_CLOCK_MIN > 1
+      ? "Energ&iacute;a: 0 rendimiento / 1 equilibrado / 2 ahorro (panel 4 colores: reloj cada 5 min como m&iacute;nimo)"
+      : "Energ&iacute;a: 0 = rendimiento (reloj 1 min) / 1 = equilibrado (2 min) / 2 = ahorro (5 min)",
                                 profStr, 2, " type='number' min='0' max='2' list='profList'");
   WiFiManagerParameter pNight("night", "Ahorro nocturno (00-07 h: refresca y sincroniza mucho menos)", "1", 2,
                               g_cfg.nightMode ? " type='checkbox' checked" : " type='checkbox'", WFM_LABEL_AFTER);
@@ -172,7 +177,13 @@ bool runPortal() {
   wm.setMenu(menu);
 
   Serial.printf("[net] Portal de configuración: red '%s' -> http://192.168.4.1\n", AP_NAME);
+  wm.setConfigPortalBlocking(false);
   bool connected = wm.startConfigPortal(AP_NAME, apPassword());
+  while (wm.getConfigPortalActive()) {
+    if (onIdle) onIdle();
+    if (wm.process()) connected = true;
+    delay(10);
+  }
 
   // Tomar los parámetros (si el usuario no guardó, quedan los valores previos)
   String city = pCity.getValue(); city.trim();
@@ -287,6 +298,7 @@ bool syncTime() {
   uint32_t t0 = millis();
   bool synced = false;
   while (!synced && millis() - t0 < 15000) {
+    if (onIdle) onIdle();
     synced = (sntp_get_sync_status() == SNTP_SYNC_STATUS_COMPLETED);
     if (!synced) delay(50);
   }

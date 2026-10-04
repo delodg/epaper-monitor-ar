@@ -12,7 +12,7 @@
 
 ```bash
 pio run                 # compilar
-pio run -t upload       # grabar por COM4 (ver upload_port en platformio.ini)
+pio run -e waveshare_epaper154 -t upload --upload-port COM4  # elegí perfil y puerto
 pio device monitor      # consola a 115200
 ```
 

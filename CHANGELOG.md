@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.4.0 — sin publicar
+
+- **Soporte para la Waveshare ESP32-S3-ePaper-1.54G** (panel de 4 colores, JD79660): nuevo
+  entorno `waveshare_epaper154g` en `platformio.ini`. Misma interfaz en blanco y negro; el reloj
+  refresca como mínimo cada 5 min porque el panel tarda ~20 s por actualización.
+- GxEPD2 fijado en `1.6.9`, con modo rápido completo para JD79660; sin simular refresco parcial rápido.
+- Cuatro colores: sin portada adicional al arrancar, omisión de imágenes iguales, cadencia medida
+  desde el final del refresco, botones atendidos durante BUSY y navegación agrupada al destino final.
+  Logs separan dibujo y transferencia/refresco. La velocidad física del panel requiere medir en hardware.
+- Siete perfiles: Waveshare B/N V1/V2 y 1.54G, ESP32 DevKit y S3 N8 con los dos paneles externos.
+  Pines configurables y periféricos ausentes contemplados, sin porcentaje ficticio de batería en genéricos.
+- Comando USB `I`: identidad JSON del perfil instalado para autoselección del instalador nuevo.
+- Imágenes completas por perfil, hashes SHA-256 y manifiestos generados; CI compila todo el catálogo.
+  Nuevos perfiles experimentales hasta comprobarlos físicamente.
+
 ## 1.3.0 — 2026-09-23
 
 Optimización de consumo a partir de mediciones en la placa (ver `docs/energia.md`).

@@ -3,38 +3,23 @@
 //  ePaper Monitor AR — configuración de hardware y constantes
 //  Placa: Waveshare ESP32-S3-ePaper-1.54 (V2) — ESP32-S3-PICO-1-N8R8
 //  Pantalla: 1.54" 200x200 B/N (GDEH0154D67 / SSD1681)
+//  Variante 1.54G (-DEPD_PANEL_154G): 200x200 4 colores (GDEM0154F51H / JD79660)
 // ============================================================================
 
 #ifndef FW_VERSION
 #define FW_VERSION "1.0.0"
 #endif
 
-// ---- Pantalla e-paper (SPI2) ----
-#define PIN_EPD_DC     10
-#define PIN_EPD_CS     11
-#define PIN_EPD_SCK    12
-#define PIN_EPD_MOSI   13
-#define PIN_EPD_RST     9
-#define PIN_EPD_BUSY    8
-#define EPD_SPI_HZ     4000000
+#include "hardware.h"
 
-// ---- Rails de energía ----
-#define PIN_EPD_PWR     6   // activo en BAJO  (LOW = pantalla encendida)
-#define PIN_AUDIO_PWR  42   // activo en BAJO  (codec ES8311, no se usa)
-#define PIN_VBAT_EN    17   // ALTO = rail de batería encendido (latch de encendido)
-
-// ---- LED / botones / RTC ----
-#define PIN_LED         3   // activo en BAJO
-#define PIN_BTN_BOOT    0   // botón BOOT (activo en bajo)  -> sección siguiente
-#define PIN_BTN_PWR    18   // botón PWR  (activo en bajo)  -> sección anterior
-#define PIN_RTC_INT     5   // INT del PCF85063 (no se usa)
-
-// ---- I2C (RTC PCF85063 @0x51, sensor SHTC3 @0x70) ----
-#define PIN_I2C_SDA    47
-#define PIN_I2C_SCL    48
-
-// ---- Batería: ADC1_CH3 = GPIO4, divisor 200k/200k (x2) ----
-#define PIN_BAT_ADC     4
+// El panel de 4 colores (1.54G) no tiene refresco parcial rápido: cada actualización es un
+// ciclo completo de ~20 s con parpadeo. Para no tenerlo refrescando todo el tiempo (y no
+// gastar batería) el reloj se actualiza como mínimo cada EPD_MIN_CLOCK_MIN minutos.
+#ifdef EPD_PANEL_154G
+#define EPD_MIN_CLOCK_MIN  5
+#else
+#define EPD_MIN_CLOCK_MIN  1
+#endif
 
 // ---- Zona horaria Argentina (UTC-3, sin horario de verano) ----
 #define TZ_ARGENTINA   "<-03>3"

@@ -38,6 +38,36 @@ como máximo cada 60 min (`FULL_REFRESH_EVERY_MIN`) para evitar ghosting. La pan
 *hibernate* (deep-sleep modo 1, conserva la RAM) y su rail permanece encendido durante el
 deep-sleep del ESP32 para que el refresco parcial siguiente compare contra la imagen anterior.
 
+### Variante 1.54G (4 colores)
+
+La ESP32-S3-ePaper-1.54G comparte placa y mapa de pines (EPD en GPIO 8-13, `EPD_PWR` en 6),
+pero el panel es de 4 colores (GDEM0154F51H, controlador JD79660, 2 bits por píxel). En GxEPD2
+(>= 1.6.6) es `GxEPD2_154c_GDEM0154F51H` con la clase `GxEPD2_4C`; la secuencia de init coincide
+con `EPD_1IN54G_Init_Fast` del ejemplo `08_E_paper_test` de [waveshareteam/ESP32-S3-ePaper-1.54G](https://github.com/waveshareteam/ESP32-S3-ePaper-1.54G).
+Se compila con `-e waveshare_epaper154g` (define `EPD_PANEL_154G`). Cada refresco, parcial o
+completo, mantiene el parpadeo de colores. [Waveshare](https://docs.waveshare.com/ESP32-S3-ePaper-1.54G)
+publica 15 s rápido y 20 s completo; el driver espera BUSY y el tiempo real depende del panel/temperatura.
+Por eso el reloj tiene un piso de 5 minutos. Pines iguales no implican firmware intercambiable.
+
+### V1 y placas con panel externo
+
+La V1 usa `waveshare_epaper154_v1`: 4 MB flash / 2 MB PSRAM quad (`qio_qspi`).
+La V2 y la G usan 8 MB / 8 MB octal (`qio_opi`). No intercambiar esas imágenes.
+
+| Señal | ESP32 DevKit/WROOM-32 | ESP32-S3 DevKitC-1 N8 |
+|---|---|---|
+| EPD DC / CS | 27 / 5 | 10 / 11 |
+| EPD SCK / MOSI | 18 / 23 | 12 / 13 |
+| EPD RST / BUSY | 26 / 25 | 9 / 8 |
+| BOOT / PWR externo a GND | 0 / 33 | 0 / 18 |
+| I2C SDA / SCL | 21 / 22 | 47 / 48 |
+
+Usar módulos SPI de 3,3 V, masa común y exactamente SSD1681/GDEH0154D67 o JD79660/GDEM0154F51H,
+200×200. Los genéricos se alimentan externamente, sin PSRAM obligatoria, latch ni ADC de batería.
+RTC PCF85063 y SHTC3 opcionales; sin RTC la hora proviene de NTP. En S3 se usa el conector USB nativo.
+Todos los perfiles nuevos requieren validación física. C3/S2/C6/Touch y otros paneles necesitan
+un nuevo entorno y entrada del catálogo; no son compatibles sólo por llamarse ESP32.
+
 Si tu placa muestra la imagen rotada, cambiá `EPD_ROTATION` (0..3) en `src/ui.cpp` o
 definí `-DEPD_ROTATION=2` en `platformio.ini`.
 
