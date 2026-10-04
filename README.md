@@ -7,7 +7,7 @@
   </picture>
 </p>
 
-Firmware para la placa **Waveshare ESP32-S3-ePaper-1.54 (V2)**: un monitor de escritorio
+Firmware para **Waveshare ePaper 1.54 V1/V2, 1.54G de cuatro colores y ESP32/ESP32-S3 con panel externo**: un monitor de escritorio
 argentino en tinta electrónica con **hora sincronizada por NTP (Argentina)**, **clima de tu
 ciudad (ubicación automática)**, **mareas, olas y viento**, **sol y luna**, **dólar**,
 **economía** (riesgo país, inflación, euro/real, BTC), **noticias**, **feriados** y
@@ -15,7 +15,7 @@ ciudad (ubicación automática)**, **mareas, olas y viento**, **sol y luna**, **
 al estilo M5StickC, portal Wi-Fi con QR y modo de bajo consumo para batería.
 
 **Instalalo desde el navegador → [esp32.damianlineiro.com](https://esp32.damianlineiro.com/)**\
-Conectá la placa por USB, tocá *Flashear ahora* y seguí los pasos para configurar el Wi-Fi
+En el instalador nuevo, conectá la placa, usá *Conectar y detectar placa*, revisá el perfil y seguí los pasos para configurar el Wi-Fi
 desde el celular. No hace falta instalar nada (Chrome, Edge o Brave de escritorio).
 
 | Portada | Reloj | Clima | Mar |
@@ -92,9 +92,39 @@ Inspirado en [VolosR/waveshareEinkMonitor](https://github.com/VolosR/waveshareEi
 | Batería | Li-ion por conector JST; medición en GPIO4 (divisor ×2) |
 | USB | USB-C con USB-Serial/JTAG nativo del ESP32-S3 (VID 303A / PID 1001) |
 
-Mapa de pines completo en [`include/config.h`](include/config.h) y en
-[`docs/hardware.md`](docs/hardware.md). La V1 de la placa (PSRAM quad) y la variante
-*Touch* comparten los mismos pines; el firmware sólo fue probado en la V2.
+La tabla describe la V2 original; los tiempos de consumo publicados corresponden a ese panel B/N.
+Mapa de pines en [`include/hardware.h`](include/hardware.h) y [`docs/hardware.md`](docs/hardware.md).
+Los perfiles nuevos son experimentales: compilan, pero requieren prueba en cada equipo físico.
+La variante Touch y otros chips/paneles necesitan su propio perfil; no se instala un binario genérico por aproximación.
+
+| Perfil PlatformIO / instalador | Placa y pantalla | Flash / PSRAM |
+|---|---|---|
+| `waveshare_epaper154` | Waveshare 1.54 V2 · SSD1681 B/N | 8 MB / 8 MB octal |
+| `waveshare_epaper154_v1` | Waveshare 1.54 V1 · SSD1681 B/N | 4 MB / 2 MB quad |
+| `waveshare_epaper154g` | Waveshare 1.54G · JD79660 4 colores | 8 MB / 8 MB octal |
+| `esp32dev_epaper154` | ESP32 DevKit/WROOM-32 + SSD1681 | 4 MB / no requerida |
+| `esp32dev_epaper154g` | ESP32 DevKit/WROOM-32 + GDEM0154F51H | 4 MB / no requerida |
+| `esp32s3dev_epaper154` | ESP32-S3 DevKitC-1 N8 + SSD1681 | 8 MB / no requerida |
+| `esp32s3dev_epaper154g` | ESP32-S3 DevKitC-1 N8 + GDEM0154F51H | 8 MB / no requerida |
+
+El catálogo ampliable está en [`hardware-profiles.json`](hardware-profiles.json).
+Los genéricos requieren exactamente el cableado documentado y alimentación externa; RTC y SHTC3 son opcionales.
+
+### Variante 1.54G (pantalla de 4 colores)
+
+La **ESP32-S3-ePaper-1.54G** usa los mismos pines pero otro panel (rojo/amarillo/negro/blanco,
+controlador JD79660). Requiere su propio binario: el B/N no controla este panel.
+El instalador nuevo ofrece una opción específica; también podés compilarla:
+
+```bash
+pio run -e waveshare_epaper154g -t upload
+```
+
+La interfaz se dibuja en blanco y negro igual que en la B/N. El panel de color no tiene
+refresco parcial rápido (Waveshare especifica 15 s rápido / 20 s completo), así que el reloj se
+actualiza como mínimo cada 5 minutos (`EPD_MIN_CLOCK_MIN` en `include/config.h`).
+Se omite la portada al arrancar, se agrupan las pulsaciones durante el refresco y se evitan
+imágenes idénticas. Ver [`docs/instalacion-y-rendimiento.md`](docs/instalacion-y-rendimiento.md).
 
 ## Botones (navegación estilo M5StickC)
 
@@ -114,7 +144,10 @@ Feriados · Interior · Wi-Fi · Sistema. Los puntos del pie de página indican 
 ### Opción A — desde el navegador (lo más fácil)
 
 Entrá a **[esp32.damianlineiro.com](https://esp32.damianlineiro.com/)**, conectá la placa con
-un cable **USB-C de datos** y tocá **Flashear ahora**. La página graba el mismo binario de los
+un cable **USB de datos** y usá **Conectar y detectar placa**. El firmware v1.4.0 informa su
+perfil y la web lo selecciona. Una placa nueva, con firmware anterior o con otro programa
+requiere elegir placa y pantalla manualmente: USB no identifica el panel. Después tocá
+**Flashear selección**. La página graba el binario de ese perfil de los
 releases (verificado por sha256, que está impreso en la página) y trae el paso a paso para
 configurar el Wi-Fi desde el celular.
 
@@ -123,12 +156,13 @@ Safari ni en los navegadores de celular.
 
 ### Opción B — firmware precompilado con esptool
 
-En [`firmware/`](firmware/) hay una imagen única (bootloader + particiones + aplicación) lista
-para grabar en la dirección `0x0`. Con [esptool](https://docs.espressif.com/projects/esptool/)
+Las nuevas imágenes completas (bootloader + particiones + aplicación) se generan en `dist/`
+y se adjuntan al release por perfil. El archivo histórico de `firmware/` es sólo para V2 B/N.
+Todas las imágenes completas se graban en `0x0`. Con [esptool](https://docs.espressif.com/projects/esptool/)
 instalado (`pip install esptool`):
 
 ```bash
-esptool --chip esp32s3 --port COM4 --baud 460800 write-flash 0x0 firmware/epaper-monitor-ar-v1.3.0-merged.bin
+esptool --chip esp32s3 --port COM4 --baud 460800 write-flash 0x0 epaper-monitor-ar-v1.4.0-waveshare_epaper154g-merged.bin
 ```
 
 (Reemplazá `COM4` por el puerto de tu placa. En Linux/macOS suele ser `/dev/ttyACM0`.)
@@ -136,12 +170,16 @@ esptool --chip esp32s3 --port COM4 --baud 460800 write-flash 0x0 firmware/epaper
 ### Opción C — compilar con PlatformIO
 
 ```bash
-pio run -t upload          # compila y graba (puerto configurado en platformio.ini)
+pio run -e waveshare_epaper154g -t upload  # elegí el entorno de tu placa
 pio device monitor         # consola serie a 115200
 ```
 
 Requiere PlatformIO con la plataforma `espressif32@6.13.0` (Arduino core 2.0.17); las
-librerías (GxEPD2, U8g2_for_Adafruit_GFX, WiFiManager, ArduinoJson, QRCode) se instalan solas.
+librerías (GxEPD2 1.6.9, U8g2_for_Adafruit_GFX, WiFiManager, ArduinoJson, QRCode) se instalan solas.
+No hay puerto COM fijado; usá `--upload-port COM4` cuando necesites elegirlo.
+Para empaquetar los siete perfiles, compilá todos los entornos del catálogo y ejecutá
+`python tools/package_firmware.py --version 1.4.0`. CI hace esa comprobación y entrega
+binarios, manifiestos, catálogo y `SHA256SUMS`; un tag crea un release en borrador.
 
 > Si la placa está en deep-sleep, el puerto COM sólo aparece ~1,5 s cada minuto. Para grabar:
 > mantené **BOOT** 2 s (abre el portal y queda despierta 5 min) o conectala a la PC y

@@ -71,17 +71,21 @@ bool isNight() {
 
 // Batería baja (y sin USB): pasar a la cadencia de ahorro aunque el perfil sea otro
 static bool lowBattery() {
-  return !Board::onUsbPower(g_batteryMv) && Board::batteryPercent(g_batteryMv) <= LOW_BATTERY_PCT;
+  return g_batteryMv >= 0 && !Board::onUsbPower(g_batteryMv) && Board::batteryPercent(g_batteryMv) <= LOW_BATTERY_PCT;
 }
 
 uint16_t clockIntervalMin() {
-  if (isNight()) return NIGHT_CLOCK_MIN;
-  uint8_t p = lowBattery() ? PWR_SAVER : g_cfg.profile;
-  switch (p) {
-    case PWR_PERF:   return 1;
-    case PWR_SAVER:  return 5;
-    default:         return 2;      // equilibrado
+  uint16_t m;
+  if (isNight()) m = NIGHT_CLOCK_MIN;
+  else {
+    uint8_t p = lowBattery() ? PWR_SAVER : g_cfg.profile;
+    switch (p) {
+      case PWR_PERF:   m = 1; break;
+      case PWR_SAVER:  m = 5; break;
+      default:         m = 2; break;   // equilibrado
+    }
   }
+  return m < EPD_MIN_CLOCK_MIN ? EPD_MIN_CLOCK_MIN : m;   // panel lento (1.54G): ver config.h
 }
 
 uint16_t syncIntervalMin() {
@@ -97,6 +101,7 @@ uint16_t syncIntervalMin() {
 // TÍPICAS del ESP32-S3 + panel (no medidas con amperímetro): despierto sin radio ~42 mA,
 // con Wi-Fi ~110 mA, en deep-sleep ~0,15 mA. Sirve para comparar configuraciones.
 float estimatedBatteryDays() {
+  if (PIN_BAT_ADC < 0) return 0;       // este perfil no tiene circuito de batería
   const float I_AWAKE = 42.0f, I_WIFI = 110.0f, I_SLEEP = 0.15f, CAPACITY_MAH = 1000.0f;
   float awakeMs = g_pwr.cycles ? (float)(g_pwr.sumBootMs + g_pwr.sumAppMs) / g_pwr.cycles : 815.0f;
   float syncMs  = g_pwr.syncs  ? (float)g_pwr.sumSyncMs / g_pwr.syncs : 3000.0f;

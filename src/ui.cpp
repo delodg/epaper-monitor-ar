@@ -5,7 +5,11 @@
 #include "logo_delo.h"
 
 #include <SPI.h>
+#ifdef EPD_PANEL_154G
+#include <GxEPD2_4C.h>
+#else
 #include <GxEPD2_BW.h>
+#endif
 #include <U8g2_for_Adafruit_GFX.h>
 #include <qrcode.h>
 #include <base64.h>
@@ -23,18 +27,28 @@ namespace UI {
 // ============================================================================
 static const int W = 200, H = 200;
 
-// GxEPD2_BW con un "buffer sombra" (1 bit/píxel, 1 = blanco) para poder volcar por
+// Panel según la variante de la placa. La 1.54G (4 colores) se maneja igual que la B/N:
+// la interfaz sólo dibuja en blanco y negro, que el panel de color muestra sin problema.
+#ifdef EPD_PANEL_154G
+typedef GxEPD2_154c_GDEM0154F51H EpdPanel;
+typedef GxEPD2_4C<EpdPanel, EpdPanel::HEIGHT> EpdBase;
+#else
+typedef GxEPD2_154_D67 EpdPanel;
+typedef GxEPD2_BW<EpdPanel, EpdPanel::HEIGHT> EpdBase;
+#endif
+
+// GxEPD2 con un "buffer sombra" (1 bit/píxel, 1 = blanco) para poder volcar por
 // serie lo que se dibujó y verlo en la PC como imagen (comando 'a' / 'd' por USB).
-class ShadowDisplay : public GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT> {
+class ShadowDisplay : public EpdBase {
  public:
-  explicit ShadowDisplay(GxEPD2_154_D67 epd) : GxEPD2_BW(epd) { memset(shadow, 0xFF, sizeof(shadow)); }
+  explicit ShadowDisplay(EpdPanel epd) : EpdBase(epd) { memset(shadow, 0xFF, sizeof(shadow)); }
   uint8_t shadow[W * H / 8];
   bool dark = false;                 // modo oscuro: se invierte cada píxel al dibujar
   inline uint16_t map(uint16_t c) const { return dark ? (c == GxEPD_WHITE ? GxEPD_BLACK : GxEPD_WHITE) : c; }
   void drawPixel(int16_t x, int16_t y, uint16_t color) override {
     color = map(color);
-    GxEPD2_BW::drawPixel(x, y, color);
-    switch (getRotation()) {           // misma transformación que GxEPD2_BW
+    EpdBase::drawPixel(x, y, color);
+    switch (getRotation()) {           // misma transformación que GxEPD2_BW / GxEPD2_4C
       case 1: { int16_t t = x; x = W - y - 1; y = t; break; }
       case 2: x = W - x - 1; y = H - y - 1; break;
       case 3: { int16_t t = x; x = y; y = H - t - 1; break; }
@@ -47,13 +61,36 @@ class ShadowDisplay : public GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT> {
   }
   void fillScreen(uint16_t color) override {
     color = map(color);
-    GxEPD2_BW::fillScreen(color);
+    EpdBase::fillScreen(color);
     memset(shadow, color == GxEPD_WHITE ? 0xFF : 0x00, sizeof(shadow));
   }
 };
 
-static ShadowDisplay display(GxEPD2_154_D67(PIN_EPD_CS, PIN_EPD_DC, PIN_EPD_RST, PIN_EPD_BUSY));
+static ShadowDisplay display(EpdPanel(PIN_EPD_CS, PIN_EPD_DC, PIN_EPD_RST, PIN_EPD_BUSY));
 static U8G2_FOR_ADAFRUIT_GFX u8g2;
+#ifdef EPD_PANEL_154G
+static uint8_t lastFrame[W * H / 8];
+static bool lastFrameValid = false;
+#endif
+
+// La espera física domina el costo de 4C. No repetir una imagen idéntica;
+// los refrescos completos solicitados explícitamente siguen ejecutándose.
+static void sendFrame(bool fullRefresh, uint32_t drawMs = 0) {
+#ifdef EPD_PANEL_154G
+  if (!fullRefresh && lastFrameValid && !memcmp(lastFrame, display.shadow, sizeof(lastFrame))) {
+    Serial.printf("[display] imagen sin cambios: refresco omitido (dibujo %lu ms)\n", (unsigned long)drawMs);
+    return;
+  }
+#endif
+  uint32_t started = millis();
+  display.display(!fullRefresh && EpdPanel::hasFastPartialUpdate);
+#ifdef EPD_PANEL_154G
+  memcpy(lastFrame, display.shadow, sizeof(lastFrame));
+  lastFrameValid = true;
+#endif
+  Serial.printf("[display] dibujo %lu ms | transferencia+panel %lu ms\n",
+                (unsigned long)drawMs, (unsigned long)(millis() - started));
+}
 
 #define F_CLOCK  u8g2_font_logisoso50_tn
 #define F_BIG    u8g2_font_helvB24_tf
@@ -159,6 +196,7 @@ static String money(float v) {
 //  Íconos (dibujados con primitivas, 1 bit)
 // ============================================================================
 static void drawBattery(int x, int y, int mv) {
+  if (mv < 0) return;                // sin ADC de batería en DevKit
   // 20x9: cuerpo 17x9 + borne
   display.drawRect(x, y, 17, 9, GxEPD_BLACK);
   display.fillRect(x + 17, y + 2, 2, 5, GxEPD_BLACK);
@@ -624,14 +662,16 @@ static void pageSystem() {
   char buf[64];
   font(F_R08);
   int y = 31;
-  if (Board::onUsbPower(g_batteryMv)) snprintf(buf, sizeof(buf), "Alimentación: USB (%.2f V)", g_batteryMv / 1000.0f);
+  if (g_batteryMv < 0) snprintf(buf, sizeof(buf), "Alimentación: externa (sin medidor)");
+  else if (Board::onUsbPower(g_batteryMv)) snprintf(buf, sizeof(buf), "Alimentación: USB (%.2f V)", g_batteryMv / 1000.0f);
   else snprintf(buf, sizeof(buf), "Batería: %.2f V (%d%%)", g_batteryMv / 1000.0f, Board::batteryPercent(g_batteryMv));
   text(4, y, buf); y += LINE_H8;
   if (g_indoor.valid) snprintf(buf, sizeof(buf), "Interior: %.1f °C · %.0f %% HR", g_indoor.temp, g_indoor.hum);
   else snprintf(buf, sizeof(buf), "Interior: sensor sin lectura");
   text(4, y, buf); y += LINE_H8;
   snprintf(buf, sizeof(buf), "Firmware: ePaper Monitor AR v%s", FW_VERSION); text(4, y, buf); y += LINE_H8;
-  text(4, y, fit("Placa: Waveshare ePaper-1.54 (S3) V2", W - 8).c_str()); y += LINE_H8;
+  snprintf(buf, sizeof(buf), "Placa: %s", BOARD_NAME);
+  text(4, y, fit(buf, W - 8).c_str()); y += LINE_H8;
   snprintf(buf, sizeof(buf), "Modo: %s · tema %s", g_alwaysOn ? (g_usbHost && !g_cfg.alwaysOn ? "siempre on (USB)" : "siempre on") : "bajo consumo", g_cfg.darkMode ? "oscuro" : "claro"); text(4, y, fit(buf, W - 8).c_str()); y += LINE_H8;
   static const char* PROF[] = {"rendimiento", "equilibrado", "ahorro"};
   snprintf(buf, sizeof(buf), "Energía: %s%s · %u/%u min",
@@ -641,7 +681,7 @@ static void pageSystem() {
   {
     float days = estimatedBatteryDays();
     if (days > 0) snprintf(buf, sizeof(buf), "Autonomía estimada: %.0f días (1000 mAh)", days);
-    else snprintf(buf, sizeof(buf), "Autonomía: midiendo...");
+    else snprintf(buf, sizeof(buf), PIN_BAT_ADC < 0 ? "Autonomía: sin circuito de batería" : "Autonomía: midiendo...");
     text(4, y, fit(buf, W - 8).c_str()); y += LINE_H8;
   }
   snprintf(buf, sizeof(buf), "Arranques: %lu · RAM %u KB", (unsigned long)g_state.bootCount, (unsigned)(ESP.getFreeHeap() / 1024)); text(4, y, buf); y += LINE_H8;
@@ -977,7 +1017,11 @@ static void pageIndoor() {
 void begin(bool coldBoot) {
   SPI.begin(PIN_EPD_SCK, -1, PIN_EPD_MOSI, PIN_EPD_CS);
   display.epd2.selectSPI(SPI, SPISettings(EPD_SPI_HZ, MSBFIRST, SPI_MODE0));
-  display.init(0, coldBoot, 10, false);
+  display.init(0, coldBoot || !EpdPanel::hasFastPartialUpdate, 10, false);
+#ifdef EPD_PANEL_154G
+  // Registros E0=02/E6=5D/A5=00: modo rápido del ejemplo oficial Waveshare.
+  static_cast<GxEPD2_EPD&>(display.epd2).selectFastFullUpdate(true);
+#endif
   display.setRotation(EPD_ROTATION);
   display.setTextColor(GxEPD_BLACK);
   u8g2.begin(display);
@@ -986,6 +1030,8 @@ void begin(bool coldBoot) {
   u8g2.setForegroundColor(GxEPD_BLACK);
   u8g2.setBackgroundColor(GxEPD_WHITE);
 }
+
+void setBusyCallback(void (*callback)(const void*)) { display.epd2.setBusyCallback(callback); }
 
 static void drawPage(uint8_t page) {
   display.setFullWindow();
@@ -1008,9 +1054,10 @@ static void drawPage(uint8_t page) {
 }
 
 void render(uint8_t page, bool fullRefresh) {
+  uint32_t started = millis();
   display.dark = g_cfg.darkMode;
   drawPage(page);
-  display.display(!fullRefresh);
+  sendFrame(fullRefresh, millis() - started);
 }
 
 void setDarkMode(bool on) { display.dark = on; }
@@ -1061,7 +1108,7 @@ void renderSplash(const char* status) {
   snprintf(buf, sizeof(buf), "v%s", FW_VERSION);
   font(F_TINY);
   textRight(W - M, 189, buf);
-  display.display(false);
+  sendFrame(true);
 }
 
 void renderPortal() {
@@ -1108,7 +1155,7 @@ void renderPortal() {
   text(4, 169, "y fuente de noticias. Se cierra a los 5 min.");
   font(F_B08);
   textCenter(W / 2, 190, "Esperando configuración…");
-  display.display(false);
+  sendFrame(true);
 }
 
 void renderMessage(const char* title, const char* line1, const char* line2, bool fullRefresh) {
@@ -1120,7 +1167,7 @@ void renderMessage(const char* title, const char* line1, const char* line2, bool
   font(F_R10);
   if (line1) textCenter(W / 2, 108, line1);
   if (line2) textCenter(W / 2, 126, line2);
-  display.display(!fullRefresh);
+  sendFrame(fullRefresh);
 }
 
 void hibernate() { display.hibernate(); }

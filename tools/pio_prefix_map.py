@@ -8,3 +8,5 @@ pd = env.subst("$PROJECT_DIR").replace("\\", "/")
 flags = [f"-fmacro-prefix-map={pk}=pkg", f"-fmacro-prefix-map={pd}=.",
          f"-ffile-prefix-map={pk}=pkg", f"-ffile-prefix-map={pd}=."]
 env.Append(CCFLAGS=flags, ASFLAGS=flags)
+# La identidad y el artefacto salen del mismo entorno, sin mantener otra tabla.
+env.Append(CPPDEFINES=[("HW_PROFILE_ID", '\\"' + env.subst("$PIOENV") + '\\"')])

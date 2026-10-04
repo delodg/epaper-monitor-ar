@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "profiles": [
+    {
+      "id": "waveshare_epaper154",
+      "name": "Waveshare ESP32-S3-ePaper-1.54 V2 · blanco y negro",
+      "chipFamily": "ESP32-S3",
+      "panel": "SSD1681 · GDEH0154D67 · 200 × 200 · B/N",
+      "flashSize": "8MB",
+      "psram": "8 MB octal",
+      "minClockMinutes": 1,
+      "experimental": false,
+      "notes": "Buscá V2 en la placa. El firmware B/N original se probó en este modelo."
+    },
+    {
+      "id": "waveshare_epaper154g",
+      "name": "Waveshare ESP32-S3-ePaper-1.54G · cuatro colores",
+      "chipFamily": "ESP32-S3",
+      "panel": "JD79660 · GDEM0154F51H · 200 × 200 · 4 colores",
+      "flashSize": "8MB",
+      "psram": "8 MB octal",
+      "minClockMinutes": 5,
+      "experimental": true,
+      "notes": "Elegí esta variante si dice 1.54G: blanco, negro, rojo y amarillo. Interfaz B/N; refresco físico de unos 15–20 s. Se agrupan pulsaciones durante la espera y el reloj actualiza cada 5 min como mínimo. Pendiente de prueba física."
+    },
+    {
+      "id": "waveshare_epaper154_v1",
+      "name": "Waveshare ESP32-S3-ePaper-1.54 V1 · blanco y negro",
+      "chipFamily": "ESP32-S3",
+      "panel": "SSD1681 · GDEH0154D67 · 200 × 200 · B/N",
+      "flashSize": "4MB",
+      "psram": "2 MB quad",
+      "minClockMinutes": 1,
+      "experimental": true,
+      "notes": "Versión anterior sin marca V2: ESP32-S3FH4R2, 4 MB flash y 2 MB PSRAM quad. Pendiente de prueba física; no uses el binario V2."
+    },
+    {
+      "id": "esp32dev_epaper154",
+      "name": "ESP32 DevKit / WROOM-32 + pantalla externa B/N",
+      "chipFamily": "ESP32",
+      "panel": "SSD1681 · GDEH0154D67 · 200 × 200 · B/N",
+      "flashSize": "4MB",
+      "psram": "No requerida",
+      "minClockMinutes": 1,
+      "experimental": true,
+      "notes": "Requiere pantalla SPI 1.54 SSD1681 y el cableado del perfil: DC 27, CS 5, SCK 18, MOSI 23, RST 26, BUSY 25. BOOT 0; botón externo PWR 33 a GND. Siempre encendido con alimentación externa. RTC y SHTC3 opcionales. Pendiente de prueba física."
+    },
+    {
+      "id": "esp32dev_epaper154g",
+      "name": "ESP32 DevKit / WROOM-32 + pantalla externa de cuatro colores",
+      "chipFamily": "ESP32",
+      "panel": "JD79660 · GDEM0154F51H · 200 × 200 · 4 colores",
+      "flashSize": "4MB",
+      "psram": "No requerida",
+      "minClockMinutes": 5,
+      "experimental": true,
+      "notes": "Requiere GDEM0154F51H y el cableado del perfil: DC 27, CS 5, SCK 18, MOSI 23, RST 26, BUSY 25. BOOT 0; botón externo PWR 33 a GND. Alimentación externa, sin medidor de batería. Interfaz B/N y refrescos de unos 20 s. Pendiente de prueba física."
+    },
+    {
+      "id": "esp32s3dev_epaper154",
+      "name": "ESP32-S3 DevKitC-1 N8 + pantalla externa B/N",
+      "chipFamily": "ESP32-S3",
+      "panel": "SSD1681 · GDEH0154D67 · 200 × 200 · B/N",
+      "flashSize": "8MB",
+      "psram": "No requerida",
+      "minClockMinutes": 1,
+      "experimental": true,
+      "notes": "Requiere 8 MB flash y cableado externo: DC 10, CS 11, SCK 12, MOSI 13, RST 9, BUSY 8. BOOT 0; botón externo PWR 18 a GND. USB nativo, alimentación externa y periféricos I2C opcionales. Pendiente de prueba física."
+    },
+    {
+      "id": "esp32s3dev_epaper154g",
+      "name": "ESP32-S3 DevKitC-1 N8 + pantalla externa de cuatro colores",
+      "chipFamily": "ESP32-S3",
+      "panel": "JD79660 · GDEM0154F51H · 200 × 200 · 4 colores",
+      "flashSize": "8MB",
+      "psram": "No requerida",
+      "minClockMinutes": 5,
+      "experimental": true,
+      "notes": "Requiere 8 MB flash, GDEM0154F51H y cableado externo: DC 10, CS 11, SCK 12, MOSI 13, RST 9, BUSY 8. BOOT 0; botón externo PWR 18 a GND. Interfaz B/N y refrescos de unos 20 s. Pendiente de prueba física."
+    }
+  ]
+}

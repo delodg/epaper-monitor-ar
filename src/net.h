@@ -6,6 +6,8 @@
 // feriados, noticias). Todo escribe en las estructuras globales de appdata.h.
 namespace Net {
 
+extern void (*onIdle)();                  // servicio liviano durante portal/conexión/NTP
+
 bool hasCredentials();                    // hay una red guardada en NVS
 bool connect(uint32_t timeoutMs);         // conecta con la red guardada
 bool isConnected();
